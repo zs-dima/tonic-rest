@@ -110,9 +110,11 @@ paths:
         assert!(doc["security"].as_sequence().is_some());
 
         // Security schemes should exist
-        assert!(doc["components"]["securitySchemes"]["bearerAuth"]
-            .as_mapping()
-            .is_some());
+        assert!(
+            doc["components"]["securitySchemes"]["bearerAuth"]
+                .as_mapping()
+                .is_some()
+        );
 
         // Public endpoint should have empty security
         let op = doc["paths"]["/v1/auth/login"]["post"].as_mapping().unwrap();

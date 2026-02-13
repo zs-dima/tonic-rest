@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use prost::Message;
 
 use crate::descriptor::{
-    self, field_type, DescriptorProto, FieldDescriptorProto, FileDescriptorSet,
+    self, DescriptorProto, FieldDescriptorProto, FileDescriptorSet, field_type,
 };
 use crate::error;
 

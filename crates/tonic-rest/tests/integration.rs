@@ -11,18 +11,18 @@
 use std::convert::Infallible;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Extension, Json, Query, State};
 use axum::http::{HeaderMap, Request, StatusCode};
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, post};
-use axum::Router;
 use futures::stream::{self, Stream, StreamExt};
 use http_body_util::BodyExt;
 use serde::{Deserialize, Serialize};
 use tower::ServiceExt;
 
-use tonic_rest::{build_tonic_request, sse_error_event, RestError};
+use tonic_rest::{RestError, build_tonic_request, sse_error_event};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct TestRequest {

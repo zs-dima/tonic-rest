@@ -25,11 +25,11 @@ pub use config::{
     ServerEntry, TransformConfig,
 };
 pub use discover::{
-    discover, EnumRewrite, FieldConstraint, OperationEntry, PathParamConstraint, PathParamInfo,
-    ProtoMetadata, SchemaConstraints, StreamingOp,
+    EnumRewrite, FieldConstraint, OperationEntry, PathParamConstraint, PathParamInfo,
+    ProtoMetadata, SchemaConstraints, StreamingOp, discover,
 };
 pub use error::{Error, Result};
-pub use patch::{patch, PatchConfig};
+pub use patch::{PatchConfig, patch};
 
 /// Test-support utilities for constructing `ProtoMetadata` fixtures.
 ///

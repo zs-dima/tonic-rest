@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use tonic_rest_core::descriptor::{self, field_type, FileDescriptorSet, MethodDescriptorProto};
+use tonic_rest_core::descriptor::{self, FileDescriptorSet, MethodDescriptorProto, field_type};
 
 use super::config::{GenerateError, RestCodegenConfig};
 use super::types::{

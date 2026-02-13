@@ -47,8 +47,8 @@ mod tests {
     use super::*;
     use std::convert::Infallible;
 
-    use axum::response::sse::Sse;
     use axum::response::IntoResponse;
+    use axum::response::sse::Sse;
     use futures::stream;
     use http_body_util::BodyExt;
 

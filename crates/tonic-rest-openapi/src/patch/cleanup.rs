@@ -15,8 +15,8 @@ use serde_yaml_ng::Value;
 use crate::discover::ProtoMetadata;
 
 use super::helpers::{
-    collect_empty_schema_names, collect_refs, for_each_operation, json_response_with_schema_ref,
-    request_body_ref, schemas, schemas_mut, val_s, UUID_EXAMPLE,
+    UUID_EXAMPLE, collect_empty_schema_names, collect_refs, for_each_operation,
+    json_response_with_schema_ref, request_body_ref, schemas, schemas_mut, val_s,
 };
 
 /// Populate `summary` on operations that have a `description` but no `summary`.
@@ -921,9 +921,11 @@ paths:
             .as_sequence()
             .unwrap();
         assert_eq!(vals.len(), 2);
-        assert!(!vals
-            .iter()
-            .any(|v| v.as_str().unwrap().contains("UNSPECIFIED")));
+        assert!(
+            !vals
+                .iter()
+                .any(|v| v.as_str().unwrap().contains("UNSPECIFIED"))
+        );
     }
 
     #[test]
@@ -1011,10 +1013,10 @@ components:
         inline_request_bodies(&mut doc);
 
         // Schema ref should be replaced with inline properties
-        let media_type = doc["paths"]["/v1/auth"]["post"]["requestBody"]["content"]
-            ["application/json"]
-            .as_mapping()
-            .unwrap();
+        let media_type =
+            doc["paths"]["/v1/auth"]["post"]["requestBody"]["content"]["application/json"]
+                .as_mapping()
+                .unwrap();
         let schema = media_type.get("schema").unwrap().as_mapping().unwrap();
         assert!(schema.contains_key("properties"));
         assert!(!schema.contains_key("$ref"));
@@ -1070,18 +1072,20 @@ paths:
             op.get("deprecated").is_none(),
             "unimplemented ops should not be marked deprecated"
         );
-        assert!(op
-            .get("description")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .starts_with("⚠️"));
-        assert!(op
-            .get("responses")
-            .unwrap()
-            .as_mapping()
-            .unwrap()
-            .contains_key("501"));
+        assert!(
+            op.get("description")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .starts_with("⚠️")
+        );
+        assert!(
+            op.get("responses")
+                .unwrap()
+                .as_mapping()
+                .unwrap()
+                .contains_key("501")
+        );
     }
 
     #[test]
@@ -1353,8 +1357,10 @@ components:
             .as_sequence()
             .unwrap();
         assert_eq!(vals.len(), 2);
-        assert!(!vals
-            .iter()
-            .any(|v| v.as_str().is_some_and(|s| s == "unspecified")));
+        assert!(
+            !vals
+                .iter()
+                .any(|v| v.as_str().is_some_and(|s| s == "unspecified"))
+        );
     }
 }

@@ -28,7 +28,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use clap::Parser;
 use serde_yaml_ng::Value;
 use tonic_rest_openapi::{PatchConfig, ProjectConfig};

@@ -323,14 +323,16 @@ components:
     let result = run_patch(input, &config);
 
     // Component schema enum should be rewritten
-    let schema_enum = result["components"]["schemas"]["users.v1.User"]["properties"]["status"]
-        ["enum"]
-        .as_sequence()
-        .unwrap();
+    let schema_enum =
+        result["components"]["schemas"]["users.v1.User"]["properties"]["status"]["enum"]
+            .as_sequence()
+            .unwrap();
     assert!(schema_enum.contains(&Value::String("active".to_string())));
-    assert!(!schema_enum
-        .iter()
-        .any(|v| v.as_str().unwrap().contains("USER_STATUS")));
+    assert!(
+        !schema_enum
+            .iter()
+            .any(|v| v.as_str().unwrap().contains("USER_STATUS"))
+    );
 
     // format: enum should be removed
     let props = result["components"]["schemas"]["users.v1.User"]["properties"]["status"]
@@ -878,9 +880,11 @@ components:
     let role_enum = result["components"]["schemas"]["users.v1.User"]["properties"]["role"]["enum"]
         .as_sequence()
         .unwrap();
-    assert!(!role_enum
-        .iter()
-        .any(|v| v.as_str().is_some_and(|s| s.contains("UNSPECIFIED"))));
+    assert!(
+        !role_enum
+            .iter()
+            .any(|v| v.as_str().is_some_and(|s| s.contains("UNSPECIFIED")))
+    );
     assert!(role_enum.contains(&Value::String("ROLE_ADMIN".to_string())));
     assert!(role_enum.contains(&Value::String("ROLE_USER".to_string())));
 }

@@ -14,8 +14,8 @@ mod status_map;
 
 pub use error::RestError;
 pub use request::{
-    build_tonic_request, build_tonic_request_simple, build_tonic_request_with_headers,
-    cloudflare_header_names, forwarded_header_names, CLOUDFLARE_HEADERS, FORWARDED_HEADERS,
+    CLOUDFLARE_HEADERS, FORWARDED_HEADERS, build_tonic_request, build_tonic_request_simple,
+    build_tonic_request_with_headers, cloudflare_header_names, forwarded_header_names,
 };
 pub use sse::sse_error_event;
 pub use status_map::{grpc_code_name, grpc_to_http_status};

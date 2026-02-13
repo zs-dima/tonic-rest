@@ -110,9 +110,9 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
     use tonic_rest_core::descriptor::{
-        field_type, DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto,
-        FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, HttpPattern, HttpRule,
-        MethodDescriptorProto, MethodOptions, ServiceDescriptorProto,
+        DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto, FieldDescriptorProto,
+        FileDescriptorProto, FileDescriptorSet, HttpPattern, HttpRule, MethodDescriptorProto,
+        MethodOptions, ServiceDescriptorProto, field_type,
     };
 
     use super::extract::{collect_field_types, convert_to_axum_path, extract_path_params};

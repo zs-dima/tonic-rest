@@ -14,8 +14,8 @@ use serde_yaml_ng::Value;
 use crate::discover::{PathParamInfo, SchemaConstraints};
 
 use super::helpers::{
-    for_each_operation, schemas_mut, snake_to_lower_camel_dotted, val_i64, val_n, val_s,
-    UUID_EXAMPLE, UUID_PATTERN,
+    UUID_EXAMPLE, UUID_PATTERN, for_each_operation, schemas_mut, snake_to_lower_camel_dotted,
+    val_i64, val_n, val_s,
 };
 
 /// Flatten UUID wrapper references to inline `type: string, format: uuid`.
@@ -958,10 +958,11 @@ components:
         strip_path_fields_from_body(&mut doc);
 
         // The operation's schema should be inlined with itemId stripped
-        let inlined_schema = doc["paths"]["/v1/items/{itemId}"]["put"]["requestBody"]["content"]
-            ["application/json"]["schema"]
-            .as_mapping()
-            .unwrap();
+        let inlined_schema =
+            doc["paths"]["/v1/items/{itemId}"]["put"]["requestBody"]["content"]["application/json"]
+                ["schema"]
+                .as_mapping()
+                .unwrap();
         let props = inlined_schema
             .get("properties")
             .unwrap()
@@ -1022,10 +1023,11 @@ components:
         strip_path_fields_from_body(&mut doc);
 
         // PUT operation should have inlined schema with itemId stripped
-        let put_schema = doc["paths"]["/v1/items/{itemId}"]["put"]["requestBody"]["content"]
-            ["application/json"]["schema"]
-            .as_mapping()
-            .unwrap();
+        let put_schema =
+            doc["paths"]["/v1/items/{itemId}"]["put"]["requestBody"]["content"]["application/json"]
+                ["schema"]
+                .as_mapping()
+                .unwrap();
         let put_props = put_schema.get("properties").unwrap().as_mapping().unwrap();
         assert!(!put_props.contains_key("itemId"));
         assert!(put_props.contains_key("name"));
@@ -1036,8 +1038,8 @@ components:
         assert!(put_required.contains(&val_s("name")));
 
         // POST operation should still reference the original shared schema
-        let post_schema = &doc["paths"]["/v1/items"]["post"]["requestBody"]["content"]
-            ["application/json"]["schema"];
+        let post_schema = &doc["paths"]["/v1/items"]["post"]["requestBody"]["content"]["application/json"]
+            ["schema"];
         assert!(
             post_schema.as_mapping().unwrap().contains_key("$ref"),
             "POST should keep $ref to shared schema"
@@ -1182,16 +1184,20 @@ components:
         assert!(props["clientSecret"]["writeOnly"].as_bool().unwrap());
         assert!(props["createdAt"]["readOnly"].as_bool().unwrap());
         assert!(props["updatedAt"]["readOnly"].as_bool().unwrap());
-        assert!(props["name"]
-            .as_mapping()
-            .unwrap()
-            .get("writeOnly")
-            .is_none());
-        assert!(props["name"]
-            .as_mapping()
-            .unwrap()
-            .get("readOnly")
-            .is_none());
+        assert!(
+            props["name"]
+                .as_mapping()
+                .unwrap()
+                .get("writeOnly")
+                .is_none()
+        );
+        assert!(
+            props["name"]
+                .as_mapping()
+                .unwrap()
+                .get("readOnly")
+                .is_none()
+        );
     }
 
     #[test]

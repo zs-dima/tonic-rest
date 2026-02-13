@@ -20,10 +20,10 @@ pub use tonic_rest_core::descriptor;
 #[cfg(feature = "helpers")]
 mod helpers;
 
-pub use codegen::{generate, GenerateError, RestCodegenConfig};
+pub use codegen::{GenerateError, RestCodegenConfig, generate};
 #[cfg(feature = "helpers")]
 pub use helpers::{
-    configure_prost_serde, configure_prost_serde_with_options, dump_file_descriptor_set,
-    try_configure_prost_serde, try_configure_prost_serde_with_options,
-    try_dump_file_descriptor_set, ProstSerdeConfig,
+    ProstSerdeConfig, configure_prost_serde, configure_prost_serde_with_options,
+    dump_file_descriptor_set, try_configure_prost_serde, try_configure_prost_serde_with_options,
+    try_dump_file_descriptor_set,
 };

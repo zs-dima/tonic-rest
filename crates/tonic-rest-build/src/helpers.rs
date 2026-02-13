@@ -48,8 +48,8 @@
 //! ```
 
 use prost::Message;
-use prost_types::field_descriptor_proto::{Label, Type};
 use prost_types::FileDescriptorSet;
+use prost_types::field_descriptor_proto::{Label, Type};
 
 /// Builder for configuring prost serde attributes.
 ///
