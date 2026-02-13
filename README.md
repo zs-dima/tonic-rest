@@ -1,7 +1,7 @@
 # tonic-rest
 [![Crates.io](https://img.shields.io/crates/v/tonic-rest.svg)](https://crates.io/crates/tonic-rest)
 [![docs.rs](https://img.shields.io/docsrs/tonic-rest)](https://docs.rs/tonic-rest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 [![MSRV](https://img.shields.io/badge/MSRV-1.82-blue.svg)](https://blog.rust-lang.org/2024/10/17/Rust-1.82.0.html)
 
 Define your API once in proto files — get gRPC, REST, and OpenAPI 3.1.
@@ -138,4 +138,4 @@ see [auth-service-rs](https://github.com/zs-dima/auth-service-rs).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE)
