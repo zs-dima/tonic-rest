@@ -1,0 +1,59 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+repository = "https://github.com/zs-dima/tonic-rest"
+homepage = "https://github.com/zs-dima/tonic-rest"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+
+[workspace.dependencies]
+# Proto / gRPC
+prost = "0.14"
+prost-types = { version = "0.14" }
+prost-build = { version = "0.14" }
+tonic = "0.14"
+
+# HTTP / Web
+axum = { version = "0.8", default-features = false, features = ["json", "tokio", "query"] }
+http = "1"
+
+# Async
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+tokio = { version = "1", features = ["macros", "rt"] }
+
+# Serialization
+serde = "1"
+serde_json = "1"
+serde_yaml_ng = "0.10"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+toml = "0.9"
+
+# Date/time
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+
+# Testing
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+syn = { version = "2", features = ["full", "parsing"] }
+indoc = "2"
+pretty_assertions = "1"
+
+# Workspace crates
+tonic-rest-build = { version = "0.1", path = "crates/tonic-rest-build", default-features = false }

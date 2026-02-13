@@ -1,0 +1,51 @@
+[package]
+name = "tonic-rest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Runtime types for REST + SSE endpoints generated from protobuf google.api.http annotations"
+documentation = "https://docs.rs/tonic-rest"
+readme = "README.md"
+categories = ["web-programming", "network-programming"]
+keywords = ["grpc", "rest", "protobuf", "tonic", "axum"]
+exclude = ["tests/"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["serde"]
+serde = ["dep:prost-types", "dep:chrono", "dep:serde"]
+
+[dependencies]
+tonic.workspace = true
+axum.workspace = true
+futures.workspace = true
+http.workspace = true
+
+# Always required: RestError::into_response() builds JSON error bodies via serde_json::json!
+# and SSE error events use serde_json::json! — these run regardless of the `serde` feature.
+serde_json.workspace = true
+
+# Serde WKT adapters (behind "serde" feature)
+prost-types = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio.workspace = true
+http-body-util.workspace = true
+tower.workspace = true
+serde = { workspace = true, features = ["derive"] }
+prost-types.workspace = true
+
+# Explicit dev-deps for integration tests (avoid relying on transitive availability)
+tonic.workspace = true
+futures.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

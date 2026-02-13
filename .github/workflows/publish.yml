@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Verify version matches tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          for crate in crates/tonic-rest-build crates/tonic-rest crates/tonic-rest-openapi; do
+            VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r ".packages[] | select(.manifest_path | endswith(\"$crate/Cargo.toml\")) | .version")
+            if [ "$VERSION" != "$TAG" ]; then
+              echo "::error::Version mismatch in $crate: Cargo.toml=$VERSION, tag=$TAG"
+              exit 1
+            fi
+          done
+
+      - name: Dry run
+        run: |
+          cargo publish --dry-run -p tonic-rest-build
+          cargo publish --dry-run -p tonic-rest
+          cargo publish --dry-run -p tonic-rest-openapi
+
+      # Publish in dependency order with index propagation delay
+      - name: Publish tonic-rest-build
+        run: cargo publish -p tonic-rest-build
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for index
+        run: sleep 30
+
+      - name: Publish tonic-rest
+        run: cargo publish -p tonic-rest
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for index
+        run: sleep 30
+
+      - name: Publish tonic-rest-openapi
+        run: cargo publish -p tonic-rest-openapi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

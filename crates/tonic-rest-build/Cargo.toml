@@ -1,0 +1,39 @@
+[package]
+name = "tonic-rest-build"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Build-time REST codegen from protobuf google.api.http annotations for Tonic + Axum"
+documentation = "https://docs.rs/tonic-rest-build"
+readme = "README.md"
+categories = ["web-programming", "development-tools::build-utils"]
+keywords = ["grpc", "rest", "protobuf", "tonic", "codegen"]
+exclude = ["testdata/"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["helpers"]
+helpers = ["dep:prost-types", "dep:prost-build"]
+
+[dependencies]
+# Protobuf descriptor decoding — the only dependency needed for generate()
+prost.workspace = true
+# Standard descriptor types for configure_prost_serde (behind "helpers" feature)
+prost-types = { workspace = true, optional = true }
+# Config API for applying serde attributes (behind "helpers" feature)
+prost-build = { workspace = true, optional = true }
+# Error type derive macro
+thiserror.workspace = true
+
+[dev-dependencies]
+syn.workspace = true
+pretty_assertions.workspace = true
+indoc.workspace = true
+
+[lints]
+workspace = true

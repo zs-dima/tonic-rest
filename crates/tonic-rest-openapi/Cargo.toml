@@ -1,0 +1,55 @@
+[package]
+name = "tonic-rest-openapi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "OpenAPI 3.1 spec generation and patching from protobuf descriptors for Tonic gRPC services"
+documentation = "https://docs.rs/tonic-rest-openapi"
+readme = "README.md"
+categories = ["web-programming", "development-tools"]
+keywords = ["grpc", "rest", "protobuf", "openapi", "tonic"]
+exclude = ["tests/"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+cli = ["dep:clap", "dep:toml", "dep:anyhow"]
+
+[[bin]]
+name = "tonic-rest-openapi"
+required-features = ["cli"]
+
+[dependencies]
+# Proto descriptor decoding (for discovering RPC metadata)
+prost.workspace = true
+
+# Proto descriptor types (shared with rest-gen-build to avoid duplication)
+tonic-rest-build.workspace = true
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_yaml_ng.workspace = true
+
+# Error handling (typed errors for library API)
+thiserror.workspace = true
+
+# CLI-only error handling (richer context messages)
+anyhow = { workspace = true, optional = true }
+
+# CLI (optional)
+clap = { workspace = true, optional = true }
+
+# Version extraction from Cargo.toml (CLI only)
+toml = { workspace = true, optional = true }
+
+[dev-dependencies]
+indoc.workspace = true
+pretty_assertions.workspace = true
+
+[lints]
+workspace = true
