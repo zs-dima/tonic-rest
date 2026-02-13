@@ -6,7 +6,7 @@ exclude = [".github", "bacon.toml", "deny.toml"]
 [workspace.package]
 version = "0.1.2"
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zs-dima/tonic-rest"
 homepage = "https://github.com/zs-dima/tonic-rest"

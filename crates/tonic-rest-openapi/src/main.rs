@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn inject_version_replaces_existing() {
-        let input = r#"
+        let input = r"
 version: v2
 plugins:
   - remote: buf.build/community/google-gnostic-openapi
@@ -544,7 +544,7 @@ plugins:
     opt:
       - version=0.0.0
       - naming=proto
-"#;
+";
         let result = inject_version_yaml(input, "1.2.3").unwrap();
         assert!(
             result.contains("version=1.2.3"),
@@ -558,7 +558,7 @@ plugins:
 
     #[test]
     fn inject_version_multiple_plugins() {
-        let input = r#"
+        let input = r"
 plugins:
   - remote: plugin-a
     opt:
@@ -566,7 +566,7 @@ plugins:
   - remote: plugin-b
     opt:
       - version=0.0.0
-"#;
+";
         let result = inject_version_yaml(input, "2.0.0").unwrap();
         let count = result.matches("version=2.0.0").count();
         assert_eq!(count, 2, "both plugins should be updated");
@@ -574,12 +574,12 @@ plugins:
 
     #[test]
     fn inject_version_no_version_opt_errors() {
-        let input = r#"
+        let input = r"
 plugins:
   - remote: plugin-a
     opt:
       - naming=proto
-"#;
+";
         let result = inject_version_yaml(input, "1.0.0");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No `version=`"));
