@@ -9,6 +9,24 @@ pub const UUID_PATTERN: &str =
 /// Example UUID v4 value for OpenAPI schema `example` fields.
 pub const UUID_EXAMPLE: &str = "550e8400-e29b-41d4-a716-446655440000";
 
+/// Access `doc.components.schemas` immutably.
+pub fn schemas(doc: &Value) -> Option<&serde_yaml_ng::Mapping> {
+    doc.as_mapping()
+        .and_then(|m| m.get("components"))
+        .and_then(Value::as_mapping)
+        .and_then(|m| m.get("schemas"))
+        .and_then(Value::as_mapping)
+}
+
+/// Access `doc.components.schemas` mutably.
+pub fn schemas_mut(doc: &mut Value) -> Option<&mut serde_yaml_ng::Mapping> {
+    doc.as_mapping_mut()
+        .and_then(|m| m.get_mut("components"))
+        .and_then(Value::as_mapping_mut)
+        .and_then(|m| m.get_mut("schemas"))
+        .and_then(Value::as_mapping_mut)
+}
+
 /// Shorthand for `Value::String`.
 pub fn val_s(s: &str) -> Value {
     Value::String(s.to_string())
@@ -118,17 +136,11 @@ pub fn request_body_ref(op: &serde_yaml_ng::Mapping) -> Option<&str> {
 
 /// Collect names of schemas whose `properties` mapping is empty.
 pub fn collect_empty_schema_names(doc: &Value) -> Vec<String> {
-    let Some(schemas) = doc
-        .as_mapping()
-        .and_then(|m| m.get("components"))
-        .and_then(Value::as_mapping)
-        .and_then(|m| m.get("schemas"))
-        .and_then(Value::as_mapping)
-    else {
+    let Some(schema_map) = schemas(doc) else {
         return Vec::new();
     };
 
-    schemas
+    schema_map
         .iter()
         .filter_map(|(k, v)| {
             let name = k.as_str()?;

@@ -16,8 +16,55 @@ use crate::discover::ProtoMetadata;
 
 use super::helpers::{
     collect_empty_schema_names, collect_refs, for_each_operation, json_response_with_schema_ref,
-    request_body_ref, val_s, UUID_EXAMPLE,
+    request_body_ref, schemas, schemas_mut, val_s, UUID_EXAMPLE,
 };
+
+/// Populate `summary` on operations that have a `description` but no `summary`.
+///
+/// Swagger UI displays `summary` in the collapsed endpoint list. Without it,
+/// the full `description` is shown which can be verbose. This extracts the
+/// first meaningful line of `description` as a concise `summary`.
+pub fn populate_operation_summaries(doc: &mut Value) {
+    for_each_operation(doc, |_path, _method, op_map| {
+        let summary_key = Value::String("summary".to_string());
+
+        // Skip if summary already present and non-empty
+        let has_summary = op_map
+            .get(&summary_key)
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty());
+        if has_summary {
+            return;
+        }
+
+        let desc_key = Value::String("description".to_string());
+        let Some(desc) = op_map.get(&desc_key).and_then(Value::as_str) else {
+            return;
+        };
+
+        let summary = extract_first_line(desc);
+        if !summary.is_empty() {
+            op_map.insert(summary_key, Value::String(summary));
+        }
+    });
+}
+
+/// Extract the first non-empty, non-separator line from text.
+///
+/// Strips a trailing period for conciseness (consistent with tag summary style).
+fn extract_first_line(text: &str) -> String {
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.chars().all(|c| c == '=') {
+            continue;
+        }
+        return trimmed.strip_suffix('.').unwrap_or(trimmed).to_string();
+    }
+    String::new()
+}
 
 /// Simplify tag descriptions for Swagger UI rendering.
 ///
@@ -65,12 +112,14 @@ fn extract_tag_summary(raw: &str) -> String {
     raw.trim().to_string()
 }
 
-/// Strip `_UNSPECIFIED` / `unspecified` sentinel values from parameter enum arrays.
+/// Strip `_UNSPECIFIED` / `unspecified` sentinel values from enum arrays.
 ///
 /// Proto enums always include a `*_UNSPECIFIED = 0` sentinel. This function
-/// removes those from path and query parameter schemas since they are never
-/// valid API values.
+/// removes those from:
+/// - Path and query parameter schemas
+/// - Component schema properties (both direct enums and array item enums)
 pub fn strip_unspecified_from_query_enums(doc: &mut Value) {
+    // Strip from path/query parameters
     for_each_operation(doc, |_path, _method, op_map| {
         let Some(params) = op_map
             .get_mut("parameters")
@@ -103,6 +152,43 @@ pub fn strip_unspecified_from_query_enums(doc: &mut Value) {
             }
         }
     });
+
+    // Strip from component schemas
+    if let Some(schema_map) = schemas_mut(doc) {
+        let schema_names: Vec<String> = schema_map
+            .iter()
+            .filter_map(|(k, _)| k.as_str().map(str::to_string))
+            .collect();
+
+        for name in &schema_names {
+            let Some(props) = schema_map
+                .get_mut(name.as_str())
+                .and_then(Value::as_mapping_mut)
+                .and_then(|s| s.get_mut("properties"))
+                .and_then(Value::as_mapping_mut)
+            else {
+                continue;
+            };
+
+            let prop_names: Vec<String> = props
+                .iter()
+                .filter_map(|(k, _)| k.as_str().map(str::to_string))
+                .collect();
+
+            for prop_name in &prop_names {
+                if let Some(prop) = props
+                    .get_mut(prop_name.as_str())
+                    .and_then(Value::as_mapping_mut)
+                {
+                    strip_unspecified_enum(prop);
+
+                    if let Some(items) = prop.get_mut("items").and_then(Value::as_mapping_mut) {
+                        strip_unspecified_enum(items);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Remove unspecified sentinel values from a schema's enum array.
@@ -123,18 +209,12 @@ fn strip_unspecified_enum(schema: &mut serde_yaml_ng::Mapping) {
 pub fn rewrite_enum_values(doc: &mut Value, metadata: &ProtoMetadata) {
     let rewrites = &metadata.enum_rewrites;
     if !rewrites.is_empty() {
-        let Some(schemas) = doc
-            .as_mapping_mut()
-            .and_then(|m| m.get_mut("components"))
-            .and_then(Value::as_mapping_mut)
-            .and_then(|m| m.get_mut("schemas"))
-            .and_then(Value::as_mapping_mut)
-        else {
+        let Some(schema_map) = schemas_mut(doc) else {
             return;
         };
 
         for rewrite in rewrites {
-            let Some(prop) = schemas
+            let Some(prop) = schema_map
                 .get_mut(rewrite.schema.as_str())
                 .and_then(Value::as_mapping_mut)
                 .and_then(|s| s.get_mut("properties"))
@@ -251,6 +331,30 @@ pub fn mark_unimplemented_operations(
     });
 }
 
+/// Mark operations as deprecated in the `OpenAPI` spec.
+///
+/// Sets `deprecated: true` on matching operations, which renders as
+/// strikethrough in Swagger UI. This is the standard `OpenAPI` mechanism
+/// for indicating deprecated endpoints.
+pub fn mark_deprecated_operations(doc: &mut Value, deprecated_ops: &[String]) {
+    if deprecated_ops.is_empty() {
+        return;
+    }
+
+    for_each_operation(doc, |_path, _method, op_map| {
+        let op_id = op_map
+            .get(Value::String("operationId".to_string()))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+
+        if !deprecated_ops.iter().any(|id| id == op_id) {
+            return;
+        }
+
+        op_map.insert(Value::String("deprecated".to_string()), Value::Bool(true));
+    });
+}
+
 /// Remove `requestBody` from operations whose request schema has no properties.
 pub fn remove_empty_request_bodies(doc: &mut Value) {
     let empty_schemas = collect_empty_schema_names(doc);
@@ -307,15 +411,9 @@ pub fn remove_unused_empty_schemas(doc: &mut Value) {
         })
         .collect();
 
-    if let Some(schemas) = doc
-        .as_mapping_mut()
-        .and_then(|m| m.get_mut("components"))
-        .and_then(Value::as_mapping_mut)
-        .and_then(|m| m.get_mut("schemas"))
-        .and_then(Value::as_mapping_mut)
-    {
+    if let Some(schema_map) = schemas_mut(doc) {
         for name in &orphans {
-            schemas.remove(name.as_str());
+            schema_map.remove(name.as_str());
         }
     }
 }
@@ -363,14 +461,7 @@ fn strip_format_enum_recursive(value: &mut Value) {
 /// and types — review and adjust them in the output if needed.
 pub fn inline_request_bodies(doc: &mut Value) {
     // Clone component schemas for read-only lookup during mutation.
-    let schemas_snapshot: serde_yaml_ng::Mapping = doc
-        .as_mapping()
-        .and_then(|m| m.get("components"))
-        .and_then(Value::as_mapping)
-        .and_then(|m| m.get("schemas"))
-        .and_then(Value::as_mapping)
-        .cloned()
-        .unwrap_or_default();
+    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
 
     // Collect inline data for each operation, keyed by (path, method) to avoid
     // collisions when multiple operations share the same operationId or have empty IDs.
@@ -435,17 +526,61 @@ pub fn inline_request_bodies(doc: &mut Value) {
             return;
         };
 
-        media_type.insert(val_s("schema"), schema.clone());
-
-        if let Value::Mapping(m) = example {
-            if !m.is_empty() {
-                media_type.insert(val_s("example"), Value::Mapping(m.clone()));
-            }
-        }
+        let mut schema_with_examples = schema.clone();
+        inject_property_examples(&mut schema_with_examples, example);
+        media_type.insert(val_s("schema"), schema_with_examples);
     });
 
     // Remove schemas no longer referenced by any `$ref`.
     remove_orphaned_schemas(doc);
+}
+
+/// Inject example values from the generated example object into individual schema properties.
+///
+/// Moves examples from a flat object into per-property `example` annotations,
+/// so Swagger UI displays them inline in the Schema tab alongside types and
+/// constraints. Recurses into nested object properties.
+fn inject_property_examples(schema: &mut Value, example: &Value) {
+    let (Some(props), Some(example_map)) = (
+        schema
+            .as_mapping_mut()
+            .and_then(|m| m.get_mut("properties"))
+            .and_then(Value::as_mapping_mut),
+        example.as_mapping(),
+    ) else {
+        return;
+    };
+
+    let prop_names: Vec<String> = props
+        .iter()
+        .filter_map(|(k, _)| k.as_str().map(str::to_string))
+        .collect();
+
+    for name in &prop_names {
+        let (Some(prop), Some(ex_val)) = (
+            props.get_mut(name.as_str()).and_then(Value::as_mapping_mut),
+            example_map.get(name.as_str()),
+        ) else {
+            continue;
+        };
+
+        // Skip if property already has an example (e.g., UUID fields from validation injection)
+        if prop.contains_key("example") {
+            continue;
+        }
+
+        let is_nested_object = prop.get("properties").is_some();
+        if is_nested_object {
+            // Recurse into nested objects instead of setting a flat example
+            let mut nested_schema = Value::Mapping(prop.clone());
+            inject_property_examples(&mut nested_schema, ex_val);
+            if let Value::Mapping(updated) = nested_schema {
+                *prop = updated;
+            }
+        } else {
+            prop.insert(val_s("example"), ex_val.clone());
+        }
+    }
 }
 
 /// Resolve `allOf: [{$ref: ...}]` in schema properties to inline objects.
@@ -612,6 +747,11 @@ fn generate_field_example(name: &str, prop: &Value, schemas: &serde_yaml_ng::Map
 fn example_from_field_name(name: &str) -> Option<Value> {
     let lower = name.to_lowercase();
     if lower.contains("password") || lower.contains("secret") {
+        // Differentiate password examples so "currentPassword" vs "newPassword"
+        // don't show identical values (confusing for API consumers).
+        if lower.starts_with("new") {
+            return Some(val_s("N3wP@ssw0rd!456"));
+        }
         return Some(val_s("P@ssw0rd123!"));
     }
     if lower == "identifier" || lower.contains("email") {
@@ -644,22 +784,59 @@ fn example_from_field_name(name: &str) -> Option<Value> {
     if lower.contains("pagetoken") || lower.contains("page_token") || lower.contains("cursor") {
         return Some(val_s("eyJpZCI6MTAwfQ=="));
     }
+    if lower == "locale" {
+        return Some(val_s("en-US"));
+    }
+    if lower.contains("timezone") || lower.contains("time_zone") {
+        return Some(val_s("America/New_York"));
+    }
+    if lower == "language" || lower == "lang" {
+        return Some(val_s("en"));
+    }
+    if lower == "country" {
+        return Some(val_s("US"));
+    }
+    if lower.contains("idempotency") || lower.contains("request_id") || lower == "requestid" {
+        return Some(val_s(UUID_EXAMPLE));
+    }
+    if lower == "description" {
+        return Some(val_s("A brief description"));
+    }
+    if lower == "title" || lower == "subject" {
+        return Some(val_s("Example Title"));
+    }
+    if lower.contains("hostname") || lower == "host" {
+        return Some(val_s("api.example.com"));
+    }
+    if lower == "ip" || lower.contains("ip_address") || lower.contains("ipaddress") {
+        return Some(val_s("192.168.1.1"));
+    }
+    if lower.contains("user_agent") || lower.contains("useragent") {
+        return Some(val_s("Mozilla/5.0 (compatible)"));
+    }
+    if lower.contains("content_type")
+        || lower.contains("contenttype")
+        || lower.contains("media_type")
+        || lower.contains("mediatype")
+    {
+        return Some(val_s("application/json"));
+    }
+    if lower == "etag" {
+        return Some(val_s("\"33a64df551425fcc55e4d42a148795d9f25f89d4\""));
+    }
     None
 }
 
 /// Remove component schemas that are no longer referenced by any `$ref`.
 ///
-/// Runs in a loop to handle cascading orphans.
+/// Runs in a loop to handle cascading orphans. Limited to 100 iterations
+/// to guard against malformed specs with circular `$ref` chains.
 fn remove_orphaned_schemas(doc: &mut Value) {
-    loop {
-        let all_names: Vec<String> = doc
-            .as_mapping()
-            .and_then(|m| m.get("components"))
-            .and_then(Value::as_mapping)
-            .and_then(|m| m.get("schemas"))
-            .and_then(Value::as_mapping)
-            .map(|schemas| {
-                schemas
+    const MAX_ROUNDS: usize = 100;
+    for _ in 0..MAX_ROUNDS {
+        let all_names: Vec<String> = schemas(doc)
+            .map(|schema_map| {
+                schema_map
                     .keys()
                     .filter_map(|k| k.as_str().map(str::to_string))
                     .collect()
@@ -685,15 +862,9 @@ fn remove_orphaned_schemas(doc: &mut Value) {
             break;
         }
 
-        if let Some(schemas) = doc
-            .as_mapping_mut()
-            .and_then(|m| m.get_mut("components"))
-            .and_then(Value::as_mapping_mut)
-            .and_then(|m| m.get_mut("schemas"))
-            .and_then(Value::as_mapping_mut)
-        {
+        if let Some(schema_map) = schemas_mut(doc) {
             for name in &orphans {
-                schemas.remove(name.as_str());
+                schema_map.remove(name.as_str());
             }
         }
     }
@@ -857,8 +1028,24 @@ components:
             "Authentication request body."
         );
 
-        // Example should be generated
-        assert!(media_type.contains_key("example"));
+        // Examples should be on individual properties, not media-type level
+        assert!(
+            !media_type.contains_key("example"),
+            "media-type-level example should not be present"
+        );
+        let email_prop = schema
+            .get("properties")
+            .unwrap()
+            .as_mapping()
+            .unwrap()
+            .get("email")
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert!(
+            email_prop.contains_key("example"),
+            "property-level example should be present"
+        );
     }
 
     #[test]
@@ -879,6 +1066,10 @@ paths:
 
         let op = doc["paths"]["/v1/mfa/setup"]["post"].as_mapping().unwrap();
         assert!(op.get("x-not-implemented").unwrap().as_bool().unwrap());
+        assert!(
+            op.get("deprecated").is_none(),
+            "unimplemented ops should not be marked deprecated"
+        );
         assert!(op
             .get("description")
             .unwrap()
@@ -891,5 +1082,279 @@ paths:
             .as_mapping()
             .unwrap()
             .contains_key("501"));
+    }
+
+    #[test]
+    fn deprecated_operations_marked() {
+        let yaml = r"
+paths:
+  /v1/old:
+    get:
+      operationId: OldService_GetOld
+      responses:
+        '200':
+          description: OK
+  /v1/new:
+    get:
+      operationId: NewService_GetNew
+      responses:
+        '200':
+          description: OK
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        mark_deprecated_operations(&mut doc, &["OldService_GetOld".to_string()]);
+
+        let old_op = doc["paths"]["/v1/old"]["get"].as_mapping().unwrap();
+        assert!(old_op.get("deprecated").unwrap().as_bool().unwrap());
+
+        let new_op = doc["paths"]["/v1/new"]["get"].as_mapping().unwrap();
+        assert!(
+            new_op.get("deprecated").is_none(),
+            "non-deprecated op should not be marked"
+        );
+    }
+
+    #[test]
+    fn field_example_locale() {
+        assert_eq!(
+            example_from_field_name("locale").unwrap().as_str().unwrap(),
+            "en-US"
+        );
+    }
+
+    #[test]
+    fn field_example_timezone() {
+        assert_eq!(
+            example_from_field_name("timezone")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "America/New_York"
+        );
+        assert_eq!(
+            example_from_field_name("time_zone")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "America/New_York"
+        );
+    }
+
+    #[test]
+    fn field_example_language_and_country() {
+        assert_eq!(
+            example_from_field_name("language")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "en"
+        );
+        assert_eq!(
+            example_from_field_name("lang").unwrap().as_str().unwrap(),
+            "en"
+        );
+        assert_eq!(
+            example_from_field_name("country")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "US"
+        );
+    }
+
+    #[test]
+    fn field_example_idempotency_key() {
+        let val = example_from_field_name("idempotencyKey")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(val, UUID_EXAMPLE);
+        let val2 = example_from_field_name("request_id")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(val2, UUID_EXAMPLE);
+    }
+
+    #[test]
+    fn field_example_description_title() {
+        assert_eq!(
+            example_from_field_name("description")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "A brief description"
+        );
+        assert_eq!(
+            example_from_field_name("title").unwrap().as_str().unwrap(),
+            "Example Title"
+        );
+        assert_eq!(
+            example_from_field_name("subject")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "Example Title"
+        );
+    }
+
+    #[test]
+    fn field_example_hostname_ip() {
+        assert_eq!(
+            example_from_field_name("hostname")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "api.example.com"
+        );
+        assert_eq!(
+            example_from_field_name("host").unwrap().as_str().unwrap(),
+            "api.example.com"
+        );
+        assert_eq!(
+            example_from_field_name("ip").unwrap().as_str().unwrap(),
+            "192.168.1.1"
+        );
+        assert_eq!(
+            example_from_field_name("ip_address")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "192.168.1.1"
+        );
+    }
+
+    #[test]
+    fn field_example_user_agent_content_type() {
+        assert_eq!(
+            example_from_field_name("user_agent")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "Mozilla/5.0 (compatible)"
+        );
+        assert_eq!(
+            example_from_field_name("content_type")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "application/json"
+        );
+        assert_eq!(
+            example_from_field_name("mediaType")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "application/json"
+        );
+    }
+
+    #[test]
+    fn field_example_etag() {
+        let val = example_from_field_name("etag")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(val.starts_with('"') && val.ends_with('"'));
+    }
+
+    #[test]
+    fn field_example_unknown_returns_none() {
+        assert!(example_from_field_name("foobar").is_none());
+        assert!(example_from_field_name("xyzzy").is_none());
+    }
+
+    #[test]
+    fn operation_summaries_populated() {
+        let yaml = r"
+paths:
+  /v1/users:
+    get:
+      operationId: UserService_ListUsers
+      description: |
+        List all users in the system.
+        Supports filtering and pagination.
+    post:
+      operationId: UserService_CreateUser
+      description: Create a new user.
+  /v1/sessions:
+    delete:
+      operationId: AuthService_SignOut
+      summary: Sign out
+      description: |
+        Invalidate the current session.
+        Clears all tokens.
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        populate_operation_summaries(&mut doc);
+
+        // Summary extracted from first line (trailing period stripped)
+        let list_op = doc["paths"]["/v1/users"]["get"].as_mapping().unwrap();
+        assert_eq!(
+            list_op.get("summary").unwrap().as_str().unwrap(),
+            "List all users in the system"
+        );
+
+        // Single-line description, period stripped
+        let create_op = doc["paths"]["/v1/users"]["post"].as_mapping().unwrap();
+        assert_eq!(
+            create_op.get("summary").unwrap().as_str().unwrap(),
+            "Create a new user"
+        );
+
+        // Existing summary preserved
+        let signout_op = doc["paths"]["/v1/sessions"]["delete"].as_mapping().unwrap();
+        assert_eq!(
+            signout_op.get("summary").unwrap().as_str().unwrap(),
+            "Sign out"
+        );
+    }
+
+    #[test]
+    fn operation_summary_skipped_without_description() {
+        let yaml = r"
+paths:
+  /v1/health:
+    get:
+      operationId: HealthService_Check
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        populate_operation_summaries(&mut doc);
+
+        let op = doc["paths"]["/v1/health"]["get"].as_mapping().unwrap();
+        assert!(
+            op.get("summary").is_none(),
+            "summary should not be added when description is absent"
+        );
+    }
+
+    #[test]
+    fn unspecified_stripped_from_component_schemas() {
+        let yaml = r"
+components:
+  schemas:
+    test.v1.Response:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - unspecified
+            - active
+            - suspended
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        strip_unspecified_from_query_enums(&mut doc);
+
+        let vals = doc["components"]["schemas"]["test.v1.Response"]["properties"]["status"]["enum"]
+            .as_sequence()
+            .unwrap();
+        assert_eq!(vals.len(), 2);
+        assert!(!vals
+            .iter()
+            .any(|v| v.as_str().is_some_and(|s| s == "unspecified")));
     }
 }

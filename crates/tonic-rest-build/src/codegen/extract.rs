@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::descriptor::{self, field_type, FileDescriptorSet, MethodDescriptorProto};
+use tonic_rest_core::descriptor::{self, field_type, FileDescriptorSet, MethodDescriptorProto};
 
 use super::config::{GenerateError, RestCodegenConfig};
 use super::types::{
@@ -145,6 +145,16 @@ fn extract_method_route(
         .map_or("", |h| h.body.as_str());
 
     let proto_name = method.name.as_deref().unwrap_or("").to_string();
+
+    // Only `body: "*"` (whole message) is supported. Partial body selectors
+    // (e.g., `body: "user"`) require sub-message deserialization that the
+    // codegen does not implement — reject early with a clear error.
+    if !body.is_empty() && body != "*" {
+        return Err(GenerateError::UnsupportedBodySelector {
+            method: proto_name,
+            body: body.to_string(),
+        });
+    }
     let rust_name = super::to_snake_case(&proto_name);
     let server_streaming = method.server_streaming.unwrap_or(false);
 

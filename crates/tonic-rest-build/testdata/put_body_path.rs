@@ -27,6 +27,7 @@ where
         .with_state(service)
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `ReplaceItem` — JSON endpoint.
 ///
 /// `PUT /v1/items/{item_id}`

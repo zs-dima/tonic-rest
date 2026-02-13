@@ -27,8 +27,8 @@ use super::status_map::{grpc_code_name, grpc_to_http_status};
 /// ```
 ///
 /// Note: SSE error events (via [`sse_error_event`](crate::sse_error_event)) use
-/// a flat structure without the `"error"` wrapper, since the SSE event type
-/// field (`event: error`) already provides the error context.
+/// the same `{"error": {...}}` format, ensuring a consistent error shape across
+/// both HTTP JSON and SSE transports.
 ///
 /// If you need a custom error shape, implement
 /// [`axum::response::IntoResponse`] on your own error type and set the

@@ -369,6 +369,48 @@ pub fn rewrite_default_error_responses(doc: &mut Value, error_schema_ref: &str) 
     });
 }
 
+/// Rewrite `200 OK` to `201 Created` for resource-creation endpoints.
+///
+/// Detection is convention-based: `POST` operations whose `operationId`
+/// contains `Create`, `SignUp`, or `Register` (case-sensitive prefix match
+/// after the service name separator `_`).
+pub fn rewrite_create_responses(doc: &mut Value) {
+    for_each_operation(doc, |_path, method, op_map| {
+        if method != "post" {
+            return;
+        }
+
+        let op_id = op_map
+            .get("operationId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+
+        // Extract method part after "ServiceName_"
+        let method_part = op_id.split('_').nth(1).unwrap_or(op_id);
+
+        let is_create = method_part.starts_with("Create")
+            || method_part.starts_with("SignUp")
+            || method_part.starts_with("Register");
+
+        if !is_create {
+            return;
+        }
+
+        let Some(responses) = op_map.get_mut("responses").and_then(Value::as_mapping_mut) else {
+            return;
+        };
+
+        let ok_key = Value::String("200".to_string());
+        if let Some(mut ok_response) = responses.remove(&ok_key) {
+            // Update description to "Created"
+            if let Some(resp_map) = ok_response.as_mapping_mut() {
+                resp_map.insert(val_s("description"), val_s("Created"));
+            }
+            responses.insert(Value::String("201".to_string()), ok_response);
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -479,5 +521,95 @@ paths:
 
         let schema = &doc["components"]["schemas"]["rest.v1.ErrorResponse"];
         assert!(schema.as_mapping().is_some());
+    }
+
+    #[test]
+    fn create_response_rewritten_to_201() {
+        let yaml = r"
+paths:
+  /v1/users:
+    post:
+      operationId: UserService_CreateUser
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        rewrite_create_responses(&mut doc);
+
+        let responses = doc["paths"]["/v1/users"]["post"]["responses"]
+            .as_mapping()
+            .unwrap();
+        assert!(!responses.contains_key("200"));
+        assert!(responses.contains_key("201"));
+        assert_eq!(responses["201"]["description"].as_str().unwrap(), "Created");
+    }
+
+    #[test]
+    fn signup_response_rewritten_to_201() {
+        let yaml = r"
+paths:
+  /v1/auth/signup:
+    post:
+      operationId: AuthService_SignUp
+      responses:
+        '200':
+          description: OK
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        rewrite_create_responses(&mut doc);
+
+        let responses = doc["paths"]["/v1/auth/signup"]["post"]["responses"]
+            .as_mapping()
+            .unwrap();
+        assert!(responses.contains_key("201"));
+    }
+
+    #[test]
+    fn non_create_post_keeps_200() {
+        let yaml = r"
+paths:
+  /v1/auth:
+    post:
+      operationId: AuthService_Authenticate
+      responses:
+        '200':
+          description: OK
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        rewrite_create_responses(&mut doc);
+
+        let responses = doc["paths"]["/v1/auth"]["post"]["responses"]
+            .as_mapping()
+            .unwrap();
+        assert!(responses.contains_key("200"));
+        assert!(!responses.contains_key("201"));
+    }
+
+    #[test]
+    fn put_with_create_keeps_200() {
+        let yaml = r"
+paths:
+  /v1/items/{id}:
+    put:
+      operationId: ItemService_CreateItem
+      responses:
+        '200':
+          description: OK
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        rewrite_create_responses(&mut doc);
+
+        let responses = doc["paths"]["/v1/items/{id}"]["put"]["responses"]
+            .as_mapping()
+            .unwrap();
+        assert!(
+            responses.contains_key("200"),
+            "PUT should not be rewritten to 201"
+        );
     }
 }

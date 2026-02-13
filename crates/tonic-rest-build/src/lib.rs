@@ -9,13 +9,14 @@
 #![deny(missing_docs)]
 
 mod codegen;
-#[doc(hidden)]
-/// Internal protobuf descriptor types shared with `tonic-rest-openapi`.
+
+/// Protobuf descriptor types re-exported from [`tonic_rest_core`].
 ///
-/// **Not covered by semver guarantees.** These types are `#[doc(hidden)]` and
-/// may change in any release, including patch versions. Do not depend on them
-/// directly — use the public API surface of `tonic-rest-build` instead.
-pub mod descriptor;
+/// **Deprecated**: depend on `tonic-rest-core` directly instead.
+/// This re-export exists for backward compatibility and will be
+/// removed in a future release.
+#[doc(hidden)]
+pub use tonic_rest_core::descriptor;
 #[cfg(feature = "helpers")]
 mod helpers;
 

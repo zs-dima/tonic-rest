@@ -1,12 +1,32 @@
 //! Minimal protobuf descriptor types with `google.api.http` extension support.
 //!
-//! Standard [`prost_types::MethodOptions`] drops the `google.api.http` extension
+//! Standard `prost_types::MethodOptions` drops the `google.api.http` extension
 //! (field 72295728) during decoding because prost doesn't retain unknown fields.
 //! These custom types preserve it.
 //!
 //! Used by both the build-time codegen and the `OpenAPI` spec generator.
+//!
+//! # Why custom types?
+//!
+//! The `google.api.http` annotation is a proto extension on `MethodOptions`
+//! with field number `72295728` (defined in `google/api/http.proto`). Standard
+//! `prost_types` doesn't include this field, so the annotation data is silently
+//! discarded. These types define `MethodOptions` with an explicit `http` field
+//! at tag `72295728`, allowing `prost::Message::decode` to preserve it.
+//!
+//! # Types
+//!
+//! The types mirror the standard protobuf descriptor schema, but only include
+//! the fields needed for HTTP annotation extraction and validation constraint
+//! discovery:
+//!
+//! - [`FileDescriptorSet`] / [`FileDescriptorProto`] — top-level descriptor
+//! - [`ServiceDescriptorProto`] / [`MethodDescriptorProto`] — service + method with HTTP rule
+//! - [`DescriptorProto`] / [`FieldDescriptorProto`] — message + field with validation rules
+//! - [`HttpRule`] / [`HttpPattern`] — the `google.api.http` annotation itself
+//! - [`FieldOptions`] / [`FieldRules`] — `validate.rules` constraints
 
-#[allow(clippy::all, clippy::pedantic, clippy::nursery)]
+#[allow(clippy::all, clippy::pedantic, clippy::nursery, missing_docs)]
 mod types {
     use prost::Message;
 
@@ -190,7 +210,7 @@ mod types {
         pub http: Option<HttpRule>,
     }
 
-    /// [`google.api.HttpRule`] — defines REST mapping for an RPC.
+    /// `google.api.HttpRule` — defines REST mapping for an RPC.
     #[derive(Clone, PartialEq, Message)]
     pub struct HttpRule {
         #[prost(oneof = "HttpPattern", tags = "2, 3, 4, 5, 6")]

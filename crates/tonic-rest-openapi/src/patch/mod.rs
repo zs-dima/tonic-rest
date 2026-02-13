@@ -23,6 +23,7 @@ mod validation;
 use serde_yaml_ng::Value;
 
 use crate::config::PlainTextEndpoint;
+use crate::config::{InfoOverrides, ServerEntry};
 use crate::discover::ProtoMetadata;
 use crate::error;
 
@@ -42,7 +43,7 @@ use crate::error;
 /// ```
 #[derive(Debug)]
 pub struct PatchConfig<'a> {
-    /// Proto metadata extracted via [`crate::discover`].
+    /// Proto metadata extracted via [`crate::discover()`].
     metadata: &'a ProtoMetadata,
 
     /// Raw proto method names — resolved to operation IDs at [`patch()`] time.
@@ -50,6 +51,9 @@ pub struct PatchConfig<'a> {
 
     /// Raw proto method names — resolved to operation IDs at [`patch()`] time.
     public_method_names: Vec<String>,
+
+    /// Raw proto method names — resolved to operation IDs at [`patch()`] time.
+    deprecated_method_names: Vec<String>,
 
     /// `$ref` path for the REST error response schema.
     error_schema_ref: String,
@@ -70,6 +74,18 @@ pub struct PatchConfig<'a> {
     ///
     /// Defaults to `"Bearer authentication token"` when `None`.
     bearer_description: Option<String>,
+
+    /// Server entries for the `servers` block.
+    servers: Vec<ServerEntry>,
+
+    /// `OpenAPI` `info` block overrides.
+    info: InfoOverrides,
+
+    /// Additional field name patterns to mark as `writeOnly`.
+    write_only_fields: Vec<String>,
+
+    /// Additional field name patterns to mark as `readOnly`.
+    read_only_fields: Vec<String>,
 }
 
 impl<'a> PatchConfig<'a> {
@@ -80,12 +96,17 @@ impl<'a> PatchConfig<'a> {
             metadata,
             unimplemented_method_names: Vec::new(),
             public_method_names: Vec::new(),
+            deprecated_method_names: Vec::new(),
             error_schema_ref: crate::DEFAULT_ERROR_SCHEMA_REF.to_string(),
             plain_text_endpoints: Vec::new(),
             metrics_path: None,
             readiness_path: None,
             transforms: crate::config::TransformConfig::default(),
             bearer_description: None,
+            servers: Vec::new(),
+            info: InfoOverrides::default(),
+            write_only_fields: Vec::new(),
+            read_only_fields: Vec::new(),
         }
     }
 
@@ -108,15 +129,12 @@ impl<'a> PatchConfig<'a> {
             .clone_from(&project.plain_text_endpoints);
         self.metrics_path.clone_from(&project.metrics_path);
         self.readiness_path.clone_from(&project.readiness_path);
-        self.transforms = crate::config::TransformConfig {
-            upgrade_to_3_1: project.transforms.upgrade_to_3_1,
-            annotate_sse: project.transforms.annotate_sse,
-            inject_validation: project.transforms.inject_validation,
-            add_security: project.transforms.add_security,
-            inline_request_bodies: project.transforms.inline_request_bodies,
-            flatten_uuid_refs: project.transforms.flatten_uuid_refs,
-            normalize_line_endings: project.transforms.normalize_line_endings,
-        };
+        self.servers.clone_from(&project.servers);
+        self.info = project.info.clone();
+        self.write_only_fields
+            .clone_from(&project.write_only_fields);
+        self.read_only_fields.clone_from(&project.read_only_fields);
+        self.transforms = project.transforms;
 
         if !project.unimplemented_methods.is_empty() {
             self.unimplemented_method_names
@@ -124,6 +142,10 @@ impl<'a> PatchConfig<'a> {
         }
         if !project.public_methods.is_empty() {
             self.public_method_names.clone_from(&project.public_methods);
+        }
+        if !project.deprecated_methods.is_empty() {
+            self.deprecated_method_names
+                .clone_from(&project.deprecated_methods);
         }
 
         self
@@ -146,6 +168,16 @@ impl<'a> PatchConfig<'a> {
     #[must_use]
     pub fn public_methods(mut self, methods: &[&str]) -> Self {
         self.public_method_names = methods.iter().map(ToString::to_string).collect();
+        self
+    }
+
+    /// Set proto method names of deprecated endpoints.
+    ///
+    /// Method names are resolved to gnostic operation IDs at [`patch()`] time.
+    /// These operations will receive `deprecated: true` in the output spec.
+    #[must_use]
+    pub fn deprecated_methods(mut self, methods: &[&str]) -> Self {
+        self.deprecated_method_names = methods.iter().map(ToString::to_string).collect();
         self
     }
 
@@ -205,6 +237,27 @@ impl<'a> PatchConfig<'a> {
         self
     }
 
+    /// Enable or disable server/info injection.
+    #[must_use]
+    pub fn inject_servers(mut self, enabled: bool) -> Self {
+        self.transforms.inject_servers = enabled;
+        self
+    }
+
+    /// Enable or disable `200` → `201 Created` rewrite.
+    #[must_use]
+    pub fn rewrite_create_responses(mut self, enabled: bool) -> Self {
+        self.transforms.rewrite_create_responses = enabled;
+        self
+    }
+
+    /// Enable or disable `writeOnly`/`readOnly` field annotation.
+    #[must_use]
+    pub fn annotate_field_access(mut self, enabled: bool) -> Self {
+        self.transforms.annotate_field_access = enabled;
+        self
+    }
+
     /// Skip the 3.0 → 3.1 upgrade transform.
     #[must_use]
     pub fn skip_upgrade(self) -> Self {
@@ -247,12 +300,58 @@ impl<'a> PatchConfig<'a> {
         self.normalize_line_endings(false)
     }
 
+    /// Skip server/info injection.
+    #[must_use]
+    pub fn skip_servers(self) -> Self {
+        self.inject_servers(false)
+    }
+
+    /// Skip `200` → `201 Created` rewrite.
+    #[must_use]
+    pub fn skip_create_response_rewrite(self) -> Self {
+        self.rewrite_create_responses(false)
+    }
+
+    /// Skip `writeOnly`/`readOnly` field annotation.
+    #[must_use]
+    pub fn skip_field_access_annotation(self) -> Self {
+        self.annotate_field_access(false)
+    }
+
     /// Set a custom description for the Bearer auth scheme.
     ///
     /// When `None`, defaults to `"Bearer authentication token"`.
     #[must_use]
     pub fn bearer_description(mut self, description: &str) -> Self {
         self.bearer_description = Some(description.to_string());
+        self
+    }
+
+    /// Set server entries for the `servers` block.
+    #[must_use]
+    pub fn servers(mut self, servers: &[ServerEntry]) -> Self {
+        self.servers = servers.to_vec();
+        self
+    }
+
+    /// Set `OpenAPI` `info` block overrides.
+    #[must_use]
+    pub fn info(mut self, info: InfoOverrides) -> Self {
+        self.info = info;
+        self
+    }
+
+    /// Set additional field name patterns to mark as `writeOnly`.
+    #[must_use]
+    pub fn write_only_fields(mut self, fields: &[&str]) -> Self {
+        self.write_only_fields = fields.iter().map(ToString::to_string).collect();
+        self
+    }
+
+    /// Set additional field name patterns to mark as `readOnly`.
+    #[must_use]
+    pub fn read_only_fields(mut self, fields: &[&str]) -> Self {
+        self.read_only_fields = fields.iter().map(ToString::to_string).collect();
         self
     }
 
@@ -278,10 +377,11 @@ impl<'a> PatchConfig<'a> {
     }
 
     /// Resolve deferred method names to operation IDs.
-    fn resolved_ops(&self) -> error::Result<(Vec<String>, Vec<String>)> {
+    fn resolved_ops(&self) -> error::Result<(Vec<String>, Vec<String>, Vec<String>)> {
         let unimplemented = self.resolve_method_list(&self.unimplemented_method_names)?;
         let public = self.resolve_method_list(&self.public_method_names)?;
-        Ok((unimplemented, public))
+        let deprecated = self.resolve_method_list(&self.deprecated_method_names)?;
+        Ok((unimplemented, public, deprecated))
     }
 
     /// Resolve a list of method names to gnostic operation IDs.
@@ -301,20 +401,21 @@ impl<'a> PatchConfig<'a> {
 ///
 /// # Phase Ordering
 ///
-/// The 12-phase pipeline has ordering dependencies:
-/// - **Phases 1–3** (structural, streaming, responses): run first to establish
-///   the base spec structure; later phases depend on correct response entries.
+/// The pipeline has ordering dependencies:
+/// - **Phase 1** (structural): 3.0 → 3.1 upgrade, server/info injection.
+/// - **Phase 2** (streaming): SSE annotations, `Last-Event-ID` header.
+/// - **Phase 3** (responses): status codes, plain text, redirects, error
+///   schemas, `201 Created` rewrite.
 /// - **Phase 4** (enum rewrites): must run before inlining (phase 11) so that
 ///   inlined schemas contain the rewritten enum values.
-/// - **Phase 5** (unimplemented markers): must run after response fixes (phase 3)
-///   so that `501` responses are added to specs with correct error schema refs.
-/// - **Phase 6** (security): must run after operation ID resolution; independent
-///   of validation.
-/// - **Phase 7** (cleanup): removes empty bodies before constraint injection
-///   to avoid injecting constraints into schemas about to be removed.
-/// - **Phase 8** (UUID flattening): must run before validation (phase 9) so
-///   that flattened UUID fields get correct format/pattern constraints.
-/// - **Phase 9** (validation): injects constraints into component schemas.
+/// - **Phase 5** (markers): unimplemented (`501`) and deprecated flags; must
+///   run after response fixes (phase 3).
+/// - **Phase 6** (security): bearer auth schemes; independent of validation.
+/// - **Phase 7** (cleanup): removes empty bodies before constraint injection.
+/// - **Phase 8** (UUID flattening): path template `.value` stripping, `$ref`
+///   flattening, query param simplification; must run before validation.
+/// - **Phase 9** (validation): constraint injection, `writeOnly`/`readOnly`
+///   annotation, `Duration` field rewriting.
 /// - **Phase 10** (path field stripping): must run after constraint injection
 ///   (phase 9) since it clones schemas before removing path fields.
 /// - **Phase 11** (inlining): must run after path stripping (phase 10) to
@@ -330,12 +431,15 @@ pub fn patch(input_yaml: &str, config: &PatchConfig<'_>) -> error::Result<String
     let mut doc: Value = serde_yaml_ng::from_str(input_yaml)?;
 
     // Resolve deferred method names to operation IDs
-    let (unimplemented_ops, public_ops) = config.resolved_ops()?;
+    let (unimplemented_ops, public_ops, deprecated_ops) = config.resolved_ops()?;
 
     // Phase 1: Structural transforms (3.0 → 3.1)
     if config.transforms.upgrade_to_3_1 {
         oas31::upgrade_version(&mut doc);
         oas31::convert_nullable(&mut doc);
+    }
+    if config.transforms.inject_servers {
+        oas31::inject_servers_and_info(&mut doc, &config.servers, &config.info);
     }
 
     // Phase 2: Streaming annotations
@@ -352,10 +456,17 @@ pub fn patch(input_yaml: &str, config: &PatchConfig<'_>) -> error::Result<String
     responses::patch_redirect_endpoints(&mut doc, &config.metadata.redirect_paths);
     responses::ensure_rest_error_schema(&mut doc, &config.error_schema_ref);
     responses::rewrite_default_error_responses(&mut doc, &config.error_schema_ref);
+    if config.transforms.rewrite_create_responses {
+        responses::rewrite_create_responses(&mut doc);
+    }
 
     // Phase 4: Enum value rewrites
-    cleanup::strip_unspecified_from_query_enums(&mut doc);
+    // Rewrite first (prefix-stripping), then strip unspecified sentinels.
+    // Order matters: rewrite_enum_values replaces enum arrays wholesale on
+    // component schemas (including the lowercased "unspecified" value), so
+    // stripping must run after to remove them from all locations.
     cleanup::rewrite_enum_values(&mut doc, config.metadata);
+    cleanup::strip_unspecified_from_query_enums(&mut doc);
 
     // Phase 5: Unimplemented operation markers
     if !unimplemented_ops.is_empty() {
@@ -366,18 +477,24 @@ pub fn patch(input_yaml: &str, config: &PatchConfig<'_>) -> error::Result<String
         );
     }
 
+    if !deprecated_ops.is_empty() {
+        cleanup::mark_deprecated_operations(&mut doc, &deprecated_ops);
+    }
+
     // Phase 6: Security
     if config.transforms.add_security {
         security::add_security_schemes(&mut doc, &public_ops, config.bearer_description.as_deref());
     }
 
-    // Phase 7: Cleanup (tags, empty bodies, format noise)
+    // Phase 7: Cleanup (tags, summaries, empty bodies, format noise)
     cleanup::clean_tag_descriptions(&mut doc);
+    cleanup::populate_operation_summaries(&mut doc);
     cleanup::remove_empty_request_bodies(&mut doc);
     cleanup::remove_unused_empty_schemas(&mut doc);
     cleanup::remove_format_enum(&mut doc);
 
     // Phase 8: UUID flattening
+    validation::flatten_uuid_path_templates(&mut doc);
     if config.transforms.flatten_uuid_refs {
         validation::flatten_uuid_refs(&mut doc, config.metadata.uuid_schema.as_deref());
     }
@@ -387,6 +504,14 @@ pub fn patch(input_yaml: &str, config: &PatchConfig<'_>) -> error::Result<String
     if config.transforms.inject_validation {
         validation::inject_validation_constraints(&mut doc, &config.metadata.field_constraints);
     }
+    if config.transforms.annotate_field_access {
+        validation::annotate_field_access(
+            &mut doc,
+            &config.write_only_fields,
+            &config.read_only_fields,
+        );
+    }
+    validation::annotate_duration_fields(&mut doc);
 
     // Phase 10: Path field stripping (must run after constraint injection)
     validation::strip_path_fields_from_body(&mut doc);

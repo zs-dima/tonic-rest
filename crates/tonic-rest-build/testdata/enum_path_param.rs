@@ -27,6 +27,7 @@ where
         .with_state(service)
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `Unlink` — JSON endpoint.
 ///
 /// `DELETE /v1/providers/{provider}`

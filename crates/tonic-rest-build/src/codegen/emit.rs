@@ -1,4 +1,7 @@
 //! Code emission — generates Rust source text for Axum REST handlers.
+//!
+//! All `let _ = write!(...)` / `let _ = writeln!(...)` calls discard the `Result`
+//! because writing to a `String` is infallible (`fmt::Write for String` never fails).
 
 use std::fmt::Write as _;
 
@@ -208,6 +211,7 @@ fn generate_sse_handler(
     let _ = write!(
         code,
         "\
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `{proto_name}` — SSE streaming endpoint.
 ///
 /// `{http_method} {path}` → `text/event-stream`
@@ -297,6 +301,7 @@ fn generate_json_handler(
     let _ = write!(
         code,
         "\
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `{proto_name}` — JSON endpoint.
 ///
 /// `{http_method} {path}`

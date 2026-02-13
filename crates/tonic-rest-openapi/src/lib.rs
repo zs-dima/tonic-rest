@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 
 mod config;
-pub(crate) use tonic_rest_build::descriptor;
+pub(crate) use tonic_rest_core::descriptor;
 mod discover;
 mod error;
 mod patch;
@@ -20,54 +20,46 @@ mod patch;
 /// when your proto package uses a different path (e.g., `"#/components/schemas/myapp.v1.Error"`).
 pub const DEFAULT_ERROR_SCHEMA_REF: &str = "#/components/schemas/ErrorResponse";
 
-pub use config::{PlainTextEndpoint, ProjectConfig, TransformConfig};
-pub use discover::{discover, ProtoMetadata};
+pub use config::{
+    ContactInfo, ExternalDocsInfo, InfoOverrides, LicenseInfo, PlainTextEndpoint, ProjectConfig,
+    ServerEntry, TransformConfig,
+};
+pub use discover::{
+    discover, EnumRewrite, FieldConstraint, OperationEntry, PathParamConstraint, PathParamInfo,
+    ProtoMetadata, SchemaConstraints, StreamingOp,
+};
 pub use error::{Error, Result};
 pub use patch::{patch, PatchConfig};
 
-/// Internal types for advanced use and testing.
+/// Test-support utilities for constructing `ProtoMetadata` fixtures.
 ///
-/// **Not covered by semver guarantees.** These re-exports are `#[doc(hidden)]`
-/// and may change in any release, including patch versions. They exist for
-/// integration testing and advanced use cases only.
-#[doc(hidden)]
-pub mod internal {
-    pub use crate::discover::{
-        resolve_operation_ids, EnumRewrite, FieldConstraint, OperationEntry, PathParamConstraint,
-        PathParamInfo, SchemaConstraints, StreamingOp,
-    };
+/// These setters bypass the normal [`discover()`] path, allowing tests to
+/// populate individual fields without a real proto descriptor. Only available
+/// when the `test-support` feature is enabled.
+#[cfg(feature = "test-support")]
+impl ProtoMetadata {
+    /// Set streaming ops (test helper).
+    pub fn set_streaming_ops(&mut self, ops: Vec<StreamingOp>) {
+        self.streaming_ops = ops;
+    }
 
-    use std::collections::HashMap;
+    /// Set operation IDs (test helper).
+    pub fn set_operation_ids(&mut self, ids: Vec<OperationEntry>) {
+        self.operation_ids = ids;
+    }
 
-    use crate::discover::ProtoMetadata;
+    /// Set field constraints (test helper).
+    pub fn set_field_constraints(&mut self, constraints: Vec<SchemaConstraints>) {
+        self.field_constraints = constraints;
+    }
 
-    /// Builder extension for populating `ProtoMetadata` fields in tests.
-    ///
-    /// These bypass the normal `discover()` path for fixture-based testing.
-    impl ProtoMetadata {
-        /// Set streaming ops (test helper).
-        pub fn set_streaming_ops(&mut self, ops: Vec<StreamingOp>) {
-            self.streaming_ops = ops;
-        }
+    /// Set enum rewrites (test helper).
+    pub fn set_enum_rewrites(&mut self, rewrites: Vec<EnumRewrite>) {
+        self.enum_rewrites = rewrites;
+    }
 
-        /// Set operation IDs (test helper).
-        pub fn set_operation_ids(&mut self, ids: Vec<OperationEntry>) {
-            self.operation_ids = ids;
-        }
-
-        /// Set field constraints (test helper).
-        pub fn set_field_constraints(&mut self, constraints: Vec<SchemaConstraints>) {
-            self.field_constraints = constraints;
-        }
-
-        /// Set enum rewrites (test helper).
-        pub fn set_enum_rewrites(&mut self, rewrites: Vec<EnumRewrite>) {
-            self.enum_rewrites = rewrites;
-        }
-
-        /// Set enum value map (test helper).
-        pub fn set_enum_value_map(&mut self, map: HashMap<String, String>) {
-            self.enum_value_map = map;
-        }
+    /// Set enum value map (test helper).
+    pub fn set_enum_value_map(&mut self, map: std::collections::HashMap<String, String>) {
+        self.enum_value_map = map;
     }
 }

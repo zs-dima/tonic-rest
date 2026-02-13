@@ -16,7 +16,7 @@
 //! # Usage
 //!
 //! Wire these adapters via `#[serde(with = "...")]` on prost-generated fields,
-//! or use [`tonic_rest_build::configure_prost_serde`] to auto-discover and
+//! or use `tonic_rest_build::configure_prost_serde` to auto-discover and
 //! apply them at build time.
 //!
 //! ```ignore
@@ -127,6 +127,8 @@ pub mod timestamp {
     /// Parse a `Timestamp` from an RFC 3339 string.
     pub(crate) fn deserialize_str(s: &str) -> Result<Timestamp, String> {
         let dt = chrono::DateTime::parse_from_rfc3339(s).map_err(|e| e.to_string())?;
+        // Safety: `timestamp_subsec_nanos()` returns 0..=999_999_999 which
+        // always fits in `i32` (max 2_147_483_647).
         #[allow(clippy::cast_possible_wrap)]
         Ok(Timestamp {
             seconds: dt.timestamp(),
@@ -484,13 +486,46 @@ pub mod field_mask {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// // Full enum name on the wire:
-/// tonic_rest::define_enum_serde!(user_role, crate::core::UserRole);
+/// Full enum name on the wire:
 ///
-/// // Strip prefix + lowercase on the wire:
-/// tonic_rest::define_enum_serde!(health_status, crate::ops::HealthStatus, "HEALTH_STATUS_");
+/// ```ignore
+/// // Given a prost-generated enum:
+/// // #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+/// // #[repr(i32)]
+/// // pub enum UserRole { Unspecified = 0, Admin = 1, User = 2 }
+///
+/// mod serde_wkt {
+///     tonic_rest::define_enum_serde!(user_role, crate::UserRole);
+/// }
+///
+/// #[derive(serde::Serialize, serde::Deserialize)]
+/// struct MyMessage {
+///     #[serde(with = "serde_wkt::user_role")]
+///     role: i32,                          // serializes as "ADMIN"
+///     #[serde(with = "serde_wkt::user_role::optional")]
+///     backup_role: Option<i32>,           // serializes as "USER" or null
+///     #[serde(with = "serde_wkt::user_role::repeated")]
+///     allowed_roles: Vec<i32>,            // serializes as ["ADMIN", "USER"]
+/// }
 /// ```
+///
+/// With prefix stripping for REST-friendly output:
+///
+/// ```ignore
+/// mod serde_wkt {
+///     // Strips "HEALTH_STATUS_" prefix and lowercases: "healthy", "unhealthy"
+///     tonic_rest::define_enum_serde!(health_status, crate::HealthStatus, "HEALTH_STATUS_");
+/// }
+///
+/// #[derive(serde::Serialize, serde::Deserialize)]
+/// struct HealthCheck {
+///     #[serde(with = "serde_wkt::health_status")]
+///     status: i32,  // serializes as "healthy" instead of "HEALTH_STATUS_HEALTHY"
+/// }
+/// ```
+///
+/// Deserialization accepts both the wire format and the original proto name,
+/// as well as raw integers for forward compatibility.
 #[macro_export]
 macro_rules! define_enum_serde {
     ($name:ident, $enum_type:ty) => {

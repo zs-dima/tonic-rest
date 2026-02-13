@@ -11,12 +11,13 @@ use super::status_map::grpc_to_http_status;
 ///
 /// ```text
 /// event: error
-/// data: {"code":401,"status":"UNAUTHENTICATED","message":"..."}
+/// data: {"error":{"code":401,"status":"UNAUTHENTICATED","message":"..."}}
 /// ```
 ///
-/// Note: The JSON body uses a flat structure (no `"error"` wrapper), unlike
-/// [`RestError`](crate::RestError) which wraps in `{"error": {...}}`. The SSE
-/// event type field (`event: error`) already distinguishes errors from data events.
+/// The JSON body uses the same `{"error": {...}}` wrapper as
+/// [`RestError::into_response`](crate::RestError), ensuring a consistent error
+/// shape across both HTTP JSON and SSE transports. The SSE event type field
+/// (`event: error`) provides additional context for SSE-specific handling.
 ///
 /// # Examples
 ///
@@ -29,9 +30,11 @@ use super::status_map::grpc_to_http_status;
 pub fn sse_error_event(status: &tonic::Status) -> Event {
     let http_code = grpc_to_http_status(status.code());
     let body = serde_json::json!({
-        "code": http_code.as_u16(),
-        "status": super::status_map::grpc_code_name(status.code()),
-        "message": status.message(),
+        "error": {
+            "code": http_code.as_u16(),
+            "status": super::status_map::grpc_code_name(status.code()),
+            "message": status.message(),
+        }
     });
     Event::default()
         .event("error")
@@ -72,6 +75,7 @@ mod tests {
             text.contains("\"message\":\"item gone\""),
             "missing message: {text}",
         );
+        assert!(text.contains("\"error\":"), "missing error wrapper: {text}",);
     }
 
     #[tokio::test]
@@ -85,6 +89,7 @@ mod tests {
             text.contains("\"status\":\"UNAUTHENTICATED\""),
             "missing gRPC status: {text}",
         );
+        assert!(text.contains("\"error\":"), "missing error wrapper: {text}",);
     }
 
     #[tokio::test]
@@ -97,6 +102,7 @@ mod tests {
             text.contains("\"status\":\"INTERNAL\""),
             "missing gRPC status: {text}",
         );
+        assert!(text.contains("\"error\":"), "missing error wrapper: {text}",);
     }
 
     #[tokio::test]
@@ -109,6 +115,7 @@ mod tests {
             text.contains("\"message\":\"\""),
             "missing empty message: {text}",
         );
+        assert!(text.contains("\"error\":"), "missing error wrapper: {text}",);
     }
 
     /// Verify that the SSE response has the correct content-type header.

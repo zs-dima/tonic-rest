@@ -482,13 +482,12 @@ fn field_to_constraint(field: &FieldDescriptorProto) -> Option<FieldConstraint> 
     }
 
     // UInt64 rules — propagate when within JSON safe integer range
+    // Convert exclusive bounds to inclusive (gt → +1, lt → −1) like int32/uint32.
     if let Some(u64r) = &rules.uint64 {
-        let gt = u64r.gt.unwrap_or(0);
-        let gte = u64r.gte.unwrap_or(0);
-        let min_val = gt.max(gte);
-        let lt = u64r.lt;
-        let lte = u64r.lte;
-        let max_val = lt.or(lte);
+        let min = u64r.gte.or(u64r.gt.map(|v| v.saturating_add(1)));
+        let max = u64r.lte.or(u64r.lt.map(|v| v.saturating_sub(1)));
+        let min_val = min.unwrap_or(0);
+        let max_val = max;
 
         let fits_in_json = max_val.is_some_and(|m| m <= JSON_SAFE_INT_MAX);
 
@@ -1511,5 +1510,48 @@ mod tests {
         assert_eq!(metadata.field_constraints.len(), 1);
         let fc = &metadata.field_constraints[0].fields[0];
         assert_eq!(fc.max, Some(0)); // saturated
+    }
+
+    #[test]
+    fn uint64_exclusive_bounds_converted_to_inclusive() {
+        // Proto: uint64 content_size = 3 [(validate.rules).uint64 = {gt: 0, lte: 10485760}];
+        // gt: 0 → minimum: 1 (exclusive → inclusive), lte: 10485760 → maximum: 10485760
+        let fdset = FileDescriptorSet {
+            file: vec![FileDescriptorProto {
+                name: Some("test.proto".to_string()),
+                package: Some("test.v1".to_string()),
+                message_type: vec![DescriptorProto {
+                    name: Some("Request".to_string()),
+                    field: vec![FieldDescriptorProto {
+                        name: Some("content_size".to_string()),
+                        r#type: Some(field_type::UINT64),
+                        type_name: None,
+                        options: Some(FieldOptions {
+                            rules: Some(FieldRules {
+                                uint64: Some(UInt64Rules {
+                                    gt: Some(0),
+                                    gte: None,
+                                    lt: None,
+                                    lte: Some(10_485_760),
+                                }),
+                                ..Default::default()
+                            }),
+                        }),
+                    }],
+                    nested_type: vec![],
+                }],
+                enum_type: vec![],
+                service: vec![],
+            }],
+        };
+        let bytes = fdset.encode_to_vec();
+        let metadata = discover(&bytes).unwrap();
+
+        assert_eq!(metadata.field_constraints.len(), 1);
+        let fc = &metadata.field_constraints[0].fields[0];
+        assert_eq!(fc.field, "contentSize");
+        assert_eq!(fc.min, Some(1), "gt:0 should become minimum:1");
+        assert_eq!(fc.max, Some(10_485_760));
+        assert!(fc.is_numeric);
     }
 }

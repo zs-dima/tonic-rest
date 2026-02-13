@@ -1,9 +1,10 @@
 [workspace]
 members = ["crates/*"]
 resolver = "2"
+exclude = [".github", "bacon.toml", "deny.toml"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.82"
 license = "MIT"
@@ -56,4 +57,5 @@ indoc = "2"
 pretty_assertions = "1"
 
 # Workspace crates
+tonic-rest-core = { version = "0.1", path = "crates/tonic-rest-core" }
 tonic-rest-build = { version = "0.1", path = "crates/tonic-rest-build", default-features = false }

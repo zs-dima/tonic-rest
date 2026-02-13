@@ -29,6 +29,7 @@ where
         .with_state(service)
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `CreateItem` — JSON endpoint.
 ///
 /// `POST /v1/items`
@@ -45,6 +46,7 @@ where
     Ok(Json(response.into_inner()))
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `GetItem` — JSON endpoint.
 ///
 /// `GET /v1/items/{item_id}`
@@ -63,6 +65,7 @@ where
     Ok(Json(response.into_inner()))
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `DeleteItem` — JSON endpoint.
 ///
 /// `DELETE /v1/items/{item_id}`

@@ -22,6 +22,37 @@ proto files as the single source of truth for both gRPC and REST APIs.
 - **SSE for server streaming** — streaming RPCs are automatically exposed as Server-Sent Events endpoints
 - **Serde auto-wiring** — `configure_prost_serde` discovers WKT fields and applies `#[serde(with)]` attributes automatically
 
+
+## How It Works
+
+Annotate your proto service with `google.api.http`:
+
+```protobuf
+service ItemService {
+  rpc CreateItem(CreateItemRequest) returns (Item) {
+    option (google.api.http) = { post: "/v1/items" body: "*" };
+  }
+  rpc GetItem(GetItemRequest) returns (Item) {
+    option (google.api.http) = { get: "/v1/items/{item_id}" };
+  }
+}
+```
+
+The generated code calls through Tonic service traits — sharing auth, validation,
+and business logic with gRPC handlers:
+
+```rust,ignore
+async fn rest_create_item<S: ItemService>(
+    State(service): State<Arc<S>>,
+    headers: HeaderMap,
+    Json(body): Json<CreateItemRequest>,
+) -> Result<Json<Item>, RestError> {
+    let req = build_tonic_request::<_, ()>(body, &headers, None);
+    let response = service.create_item(req).await?;
+    Ok(Json(response.into_inner()))
+}
+```
+
 ## Quick Start
 
 ```toml
@@ -157,11 +188,12 @@ see [auth-service-rs](https://github.com/zs-dima/auth-service-rs).
 
 ## Companion Crates
 
-| Crate                                                             | Purpose                | Cargo section          |
-| ----------------------------------------------------------------- | ---------------------- | ---------------------- |
-| [tonic-rest](https://crates.io/crates/tonic-rest)                 | Runtime types          | `[dependencies]`       |
-| **tonic-rest-build** (this)                                       | Build-time codegen     | `[build-dependencies]` |
-| [tonic-rest-openapi](https://crates.io/crates/tonic-rest-openapi) | OpenAPI 3.1 generation | CLI / CI               |
+| Crate                                                             | Purpose                 | Cargo section          |
+| ----------------------------------------------------------------- | ----------------------- | ---------------------- |
+| [tonic-rest-core](https://crates.io/crates/tonic-rest-core)       | Shared descriptor types | internal               |
+| [tonic-rest](https://crates.io/crates/tonic-rest)                 | Runtime types           | `[dependencies]`       |
+| **tonic-rest-build** (this)                                       | Build-time codegen      | `[build-dependencies]` |
+| [tonic-rest-openapi](https://crates.io/crates/tonic-rest-openapi) | OpenAPI 3.1 generation  | CLI / CI               |
 
 ## Compatibility
 

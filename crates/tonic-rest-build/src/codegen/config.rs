@@ -21,6 +21,22 @@ pub enum GenerateError {
         param: String,
     },
 
+    /// Partial body selector (body is a field name, not `"*"`).
+    ///
+    /// Currently only `body: "*"` (whole message) is supported.
+    /// Field-level body selectors like `body: "user"` require sub-message
+    /// deserialization that is not yet implemented.
+    #[error(
+        "partial body selector `{body}` in method `{method}` is not supported; \
+         use `body: \"*\"` instead"
+    )]
+    UnsupportedBodySelector {
+        /// The RPC method name.
+        method: String,
+        /// The unsupported body selector value.
+        body: String,
+    },
+
     /// Generic configuration error.
     #[error("{0}")]
     Config(String),
@@ -112,7 +128,7 @@ pub struct RestCodegenConfig {
 
     /// Extra HTTP headers to forward from REST requests to gRPC metadata.
     ///
-    /// When set, generated handlers combine [`FORWARDED_HEADERS`] with these
+    /// When set, generated handlers combine `FORWARDED_HEADERS` with these
     /// and call `build_tonic_request_with_headers` instead of `build_tonic_request`.
     /// Use this for vendor-specific headers (e.g., `["cf-connecting-ip"]` for Cloudflare).
     pub(crate) extra_forwarded_headers: Vec<String>,
@@ -224,7 +240,7 @@ impl RestCodegenConfig {
 
     /// Add extra HTTP headers to forward from REST requests to gRPC metadata.
     ///
-    /// These are combined with the default [`FORWARDED_HEADERS`] at startup.
+    /// These are combined with the default `FORWARDED_HEADERS` at startup.
     /// Use for vendor-specific headers like Cloudflare's `cf-connecting-ip`.
     ///
     /// # Example

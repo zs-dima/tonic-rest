@@ -18,8 +18,8 @@ mod types;
 
 pub use config::{GenerateError, RestCodegenConfig};
 
-use crate::descriptor::FileDescriptorSet;
 use prost::Message as _;
+use tonic_rest_core::descriptor::FileDescriptorSet;
 
 /// Generate REST route code from a compiled proto file descriptor set.
 ///
@@ -27,7 +27,7 @@ use prost::Message as _;
 /// process and which methods are public. Returns Rust source code to be
 /// written to `OUT_DIR/rest_routes.rs`.
 ///
-/// When [`RestCodegenConfig::packages`] is empty, automatically discovers
+/// When no packages are configured, automatically discovers
 /// packages from the descriptor set by scanning for services with
 /// `google.api.http` annotations.
 ///
@@ -107,13 +107,13 @@ impl RestCodegenConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::descriptor::{
+    use pretty_assertions::assert_eq;
+    use std::path::PathBuf;
+    use tonic_rest_core::descriptor::{
         field_type, DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto,
         FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, HttpPattern, HttpRule,
         MethodDescriptorProto, MethodOptions, ServiceDescriptorProto,
     };
-    use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
 
     use super::extract::{collect_field_types, convert_to_axum_path, extract_path_params};
     use super::types::{FieldTypeInfo, ParamAssignment};
@@ -1125,6 +1125,45 @@ mod tests {
             "expected MissingWrapperType, got: {err}",
         );
         assert!(err.to_string().contains("user_id.value"));
+    }
+
+    /// Partial body selector (e.g., `body: "user"`) should produce `UnsupportedBodySelector`.
+    #[test]
+    fn partial_body_selector_rejected() {
+        let fdset = FileDescriptorSet {
+            file: vec![FileDescriptorProto {
+                name: Some("partial.proto".to_string()),
+                package: Some("test.v1".to_string()),
+                message_type: vec![
+                    make_message("CreateReq", &[("name", field_type::STRING, None)]),
+                    make_message("Resp", &[("id", field_type::STRING, None)]),
+                ],
+                enum_type: vec![],
+                service: vec![ServiceDescriptorProto {
+                    name: Some("PartialService".to_string()),
+                    method: vec![make_method(
+                        "Create",
+                        ".test.v1.CreateReq",
+                        ".test.v1.Resp",
+                        HttpPattern::Post("/v1/items".to_string()),
+                        "name", // partial body selector — not "*"
+                        false,
+                    )],
+                }],
+            }],
+        };
+
+        let config = RestCodegenConfig::new().package("test.v1", "test");
+        let result = generate(&encode_fdset(&fdset), &config);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, GenerateError::UnsupportedBodySelector { .. }),
+            "expected UnsupportedBodySelector, got: {err}",
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("name"), "should mention body selector: {msg}");
+        assert!(msg.contains("Create"), "should mention method name: {msg}");
     }
 
     /// Auto-discovery should find services with HTTP annotations even without explicit packages.

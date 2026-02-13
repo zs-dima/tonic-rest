@@ -28,6 +28,27 @@ generates the handler code at build time.
 - **`sse_error_event`** — Formats gRPC errors as SSE events
 - **`grpc_to_http_status`** / **`grpc_code_name`** — Maps all 17 gRPC codes to HTTP status codes and canonical names
 
+### Error Response Format
+
+`RestError` produces JSON responses following the Google API error model:
+
+```json
+{
+  "error": {
+    "code": 404,
+    "message": "user not found",
+    "status": "NOT_FOUND"
+  }
+}
+```
+
+SSE error events use the same wrapped format with `event: error` type:
+
+```text
+event: error
+data: {"error":{"code":401,"status":"UNAUTHENTICATED","message":"token expired"}}
+```
+
 ## Serde Adapters
 
 Behind the `serde` feature (enabled by default), provides `#[serde(with)]` adapters
@@ -67,11 +88,12 @@ For a complete end-to-end example, see [auth-service-rs](https://github.com/zs-d
 
 ## Companion Crates
 
-| Crate                                                             | Purpose                | Cargo section          |
-| ----------------------------------------------------------------- | ---------------------- | ---------------------- |
-| **tonic-rest** (this)                                             | Runtime types          | `[dependencies]`       |
-| [tonic-rest-build](https://crates.io/crates/tonic-rest-build)     | Build-time codegen     | `[build-dependencies]` |
-| [tonic-rest-openapi](https://crates.io/crates/tonic-rest-openapi) | OpenAPI 3.1 generation | CLI / CI               |
+| Crate                                                             | Purpose                 | Cargo section          |
+| ----------------------------------------------------------------- | ----------------------- | ---------------------- |
+| [tonic-rest-core](https://crates.io/crates/tonic-rest-core)       | Shared descriptor types | internal               |
+| **tonic-rest** (this)                                             | Runtime types           | `[dependencies]`       |
+| [tonic-rest-build](https://crates.io/crates/tonic-rest-build)     | Build-time codegen      | `[build-dependencies]` |
+| [tonic-rest-openapi](https://crates.io/crates/tonic-rest-openapi) | OpenAPI 3.1 generation  | CLI / CI               |
 
 ## Compatibility
 

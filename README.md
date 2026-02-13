@@ -1,5 +1,4 @@
 # tonic-rest
-
 [![Crates.io](https://img.shields.io/crates/v/tonic-rest.svg)](https://crates.io/crates/tonic-rest)
 [![docs.rs](https://img.shields.io/docsrs/tonic-rest)](https://docs.rs/tonic-rest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -34,10 +33,49 @@ Define your API once in proto files — get gRPC, REST, and OpenAPI 3.1.
 - **Google error model** — gRPC errors map to structured JSON responses following the [Google API error model](https://cloud.google.com/apis/design/errors)
 - **Serde adapters** — ready-made `#[serde(with)]` modules for `Timestamp`, `Duration`, `FieldMask`, and proto3 enums
 
+## How It Works
+
+Annotate your proto service with `google.api.http`:
+
+```protobuf
+service ItemService {
+  rpc CreateItem(CreateItemRequest) returns (Item) {
+    option (google.api.http) = { post: "/v1/items" body: "*" };
+  }
+  rpc GetItem(GetItemRequest) returns (Item) {
+    option (google.api.http) = { get: "/v1/items/{item_id}" };
+  }
+  rpc DeleteItem(DeleteItemRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = { delete: "/v1/items/{item_id}" };
+  }
+}
+```
+
+`tonic-rest-build` generates type-safe Axum handlers at compile time:
+
+```rust,ignore
+pub fn item_service_rest_router<S>(service: Arc<S>) -> Router
+where
+    S: ItemService + Send + Sync + 'static,
+{
+    Router::new()
+        .route("/v1/items", axum::routing::post(rest_create_item::<S>))
+        .route("/v1/items/{item_id}", axum::routing::get(rest_get_item::<S>))
+        .route("/v1/items/{item_id}", axum::routing::delete(rest_delete_item::<S>))
+        .with_state(service)
+}
+```
+
+Each handler transcodes HTTP/JSON to proto and calls through Tonic service traits,
+sharing auth, validation, and business logic with gRPC handlers.
+
+
+
 ## Crates
 
 | Crate                                            | Purpose                                                              | Cargo section          |
 | ------------------------------------------------ | -------------------------------------------------------------------- | ---------------------- |
+| [tonic-rest-core](crates/tonic-rest-core/)       | Shared protobuf descriptor types (internal)                          | internal               |
 | [tonic-rest](crates/tonic-rest/)                 | Runtime types (error mapping, request bridging, SSE, serde adapters) | `[dependencies]`       |
 | [tonic-rest-build](crates/tonic-rest-build/)     | Build-time codegen (proto → Axum handlers)                           | `[build-dependencies]` |
 | [tonic-rest-openapi](crates/tonic-rest-openapi/) | OpenAPI 3.1 spec generation and patching (library + CLI)             | CLI / CI               |

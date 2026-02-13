@@ -19,6 +19,7 @@ all-features = true
 [features]
 default = []
 cli = ["dep:clap", "dep:toml", "dep:anyhow"]
+test-support = []
 
 [[bin]]
 name = "tonic-rest-openapi"
@@ -28,8 +29,8 @@ required-features = ["cli"]
 # Proto descriptor decoding (for discovering RPC metadata)
 prost.workspace = true
 
-# Proto descriptor types (shared with rest-gen-build to avoid duplication)
-tonic-rest-build.workspace = true
+# Shared protobuf descriptor types (google.api.http extension support)
+tonic-rest-core.workspace = true
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

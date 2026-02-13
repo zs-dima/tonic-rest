@@ -1,0 +1,23 @@
+[package]
+name = "tonic-rest-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shared protobuf descriptor types for the tonic-rest ecosystem (internal crate)"
+documentation = "https://docs.rs/tonic-rest-core"
+readme = "README.md"
+categories = ["web-programming"]
+keywords = ["grpc", "rest", "protobuf", "tonic"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+# Protobuf descriptor decoding — preserves google.api.http extension (field 72295728)
+prost.workspace = true
+
+[lints]
+workspace = true

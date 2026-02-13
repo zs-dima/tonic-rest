@@ -25,20 +25,20 @@ matches the runtime REST behavior.
 
 The 12-phase transform pipeline:
 
-| Phase | Transform                                                 |
-| ----- | --------------------------------------------------------- |
-| 1     | OpenAPI 3.0 → 3.1 (version + nullable conversion)         |
-| 2     | SSE streaming annotations                                 |
-| 3     | Response fixes (empty→204, redirects, error schemas)      |
-| 4     | Enum value rewrites (strip UNSPECIFIED, normalize values) |
-| 5     | Unimplemented operation markers (501)                     |
-| 6     | Security (Bearer JWT, public endpoint overrides)          |
-| 7     | Cleanup (tags, empty bodies, unused schemas)              |
-| 8     | UUID wrapper flattening (inline string/uuid)              |
-| 9     | Validation constraint injection (from proto rules)        |
-| 10    | Path parameter enrichment                                 |
-| 11    | Request body inlining + orphan removal                    |
-| 12    | CRLF → LF normalization                                   |
+| Phase | Transform                                                                     |
+| ----- | ----------------------------------------------------------------------------- |
+| 1     | Structural (3.0 → 3.1 upgrade, server/info injection)                         |
+| 2     | SSE streaming annotations + `Last-Event-ID` header                            |
+| 3     | Response fixes (empty→204, plain text, redirects, error schemas, 201 Created) |
+| 4     | Enum value rewrites (strip UNSPECIFIED, normalize values)                     |
+| 5     | Unimplemented (501) and deprecated operation markers                          |
+| 6     | Security (Bearer JWT, public endpoint overrides)                              |
+| 7     | Cleanup (tags, empty bodies, unused schemas, `format: enum` removal)          |
+| 8     | UUID wrapper flattening (path templates, `$ref` inlining, query params)       |
+| 9     | Validation constraints + field access annotation + Duration rewriting         |
+| 10    | Path field stripping + path parameter enrichment                              |
+| 11    | Request body inlining + orphan removal                                        |
+| 12    | CRLF → LF normalization                                                       |
 
 Each phase can be individually enabled/disabled via `PatchConfig` or `ProjectConfig`.
 
@@ -126,18 +126,13 @@ see [auth-service-rs](https://github.com/zs-dima/auth-service-rs).
 
 ## Companion Crates
 
-| Crate                                                         | Purpose                | Cargo section          |
-| ------------------------------------------------------------- | ---------------------- | ---------------------- |
-| [tonic-rest](https://crates.io/crates/tonic-rest)             | Runtime types          | `[dependencies]`       |
-| [tonic-rest-build](https://crates.io/crates/tonic-rest-build) | Build-time codegen     | `[build-dependencies]` |
-| **tonic-rest-openapi** (this)                                 | OpenAPI 3.1 generation | CLI / CI               |
+| Crate                                                         | Purpose                 | Cargo section          |
+| ------------------------------------------------------------- | ----------------------- | ---------------------- |
+| [tonic-rest-core](https://crates.io/crates/tonic-rest-core)   | Shared descriptor types | internal               |
+| [tonic-rest](https://crates.io/crates/tonic-rest)             | Runtime types           | `[dependencies]`       |
+| [tonic-rest-build](https://crates.io/crates/tonic-rest-build) | Build-time codegen      | `[build-dependencies]` |
+| **tonic-rest-openapi** (this)                                 | OpenAPI 3.1 generation  | CLI / CI               |
 
-> **Note:** `tonic-rest-openapi` depends on `tonic-rest-build` (as a regular `[dependency]`,
-> not a `[build-dependency]`) for shared proto descriptor types. This means adding
-> `tonic-rest-openapi` to your project will pull in `tonic-rest-build` as a transitive
-> runtime dependency. This is intentional — both crates share the same custom `prost::Message`
-> types for parsing `google.api.http` annotations. If you only need OpenAPI generation in CI
-> (not in your application binary), consider using the CLI binary or a separate workspace crate.
 
 ## Dependencies
 
@@ -149,9 +144,9 @@ migration may be warranted.
 
 ## Compatibility
 
-| tonic-rest-openapi | tonic-rest-build | prost | MSRV |
-| ------------------ | ---------------- | ----- | ---- |
-| 0.1.x              | 0.1              | 0.14  | 1.82 |
+| tonic-rest-openapi | tonic-rest-core | prost | MSRV |
+| ------------------ | --------------- | ----- | ---- |
+| 0.1.x              | 0.1             | 0.14  | 1.82 |
 
 ## License
 

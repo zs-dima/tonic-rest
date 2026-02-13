@@ -32,6 +32,7 @@ where
         .with_state(service)
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `ListEvents` — SSE streaming endpoint.
 ///
 /// `GET /v1/events` → `text/event-stream`
@@ -65,6 +66,7 @@ where
     ))
 }
 
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `UpdateUser` — JSON endpoint.
 ///
 /// `PATCH /v1/users/{user_id.value}`

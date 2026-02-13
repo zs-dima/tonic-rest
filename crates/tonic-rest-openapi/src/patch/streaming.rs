@@ -43,7 +43,50 @@ pub fn annotate_sse(doc: &mut Value, streaming_ops: &[StreamingOp]) {
                 val_s(&format!("**Streaming (SSE):** {existing}")),
             );
         }
+
+        // Add Last-Event-ID header parameter for SSE reconnection
+        add_last_event_id_header(op_map);
     });
+}
+
+/// Add a `Last-Event-ID` header parameter for SSE reconnection.
+fn add_last_event_id_header(op_map: &mut serde_yaml_ng::Mapping) {
+    let params_key = val_s("parameters");
+    if !op_map.contains_key(&params_key) {
+        op_map.insert(params_key.clone(), Value::Sequence(Vec::new()));
+    }
+
+    let Some(params) = op_map.get_mut(&params_key).and_then(Value::as_sequence_mut) else {
+        return;
+    };
+
+    // Don't add if already present
+    let already_has = params.iter().any(|p| {
+        p.as_mapping()
+            .and_then(|m| m.get("name"))
+            .and_then(Value::as_str)
+            .is_some_and(|n| n == "Last-Event-ID")
+    });
+
+    if already_has {
+        return;
+    }
+
+    let header: Value = serde_yaml_ng::from_str(
+        r"
+name: Last-Event-ID
+in: header
+required: false
+description: >-
+  Reconnection cursor from the last received SSE event.
+  When set, the server resumes the stream from this point.
+schema:
+  type: string
+",
+    )
+    .expect("static YAML must parse");
+
+    params.push(header);
 }
 
 /// Check whether a response schema `$ref` contains "stream" (fallback heuristic).
@@ -121,6 +164,20 @@ paths:
         let content = op["responses"]["200"]["content"].as_mapping().unwrap();
         assert!(content.contains_key("text/event-stream"));
         assert!(!content.contains_key("application/json"));
+
+        // Last-Event-ID header should be added
+        let params = op.get("parameters").unwrap().as_sequence().unwrap();
+        let last_event_id = params
+            .iter()
+            .find(|p| {
+                p.as_mapping()
+                    .and_then(|m| m.get("name"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|n| n == "Last-Event-ID")
+            })
+            .expect("Last-Event-ID header should be added");
+        assert_eq!(last_event_id["in"].as_str().unwrap(), "header");
+        assert!(!last_event_id["required"].as_bool().unwrap());
     }
 
     #[test]

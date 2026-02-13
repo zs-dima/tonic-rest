@@ -21,6 +21,8 @@ default = ["helpers"]
 helpers = ["dep:prost-types", "dep:prost-build"]
 
 [dependencies]
+# Shared protobuf descriptor types (google.api.http extension support)
+tonic-rest-core.workspace = true
 # Protobuf descriptor decoding — the only dependency needed for generate()
 prost.workspace = true
 # Standard descriptor types for configure_prost_serde (behind "helpers" feature)

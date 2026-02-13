@@ -522,3 +522,133 @@ fn read_cargo_version(path: &Path) -> anyhow::Result<String> {
 
     bail!("No version found in {}", path.display());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Write content to a temporary file and return its path.
+    fn write_temp_file(name: &str, content: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("tonic_rest_test_{name}"));
+        fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn inject_version_replaces_existing() {
+        let input = r#"
+version: v2
+plugins:
+  - remote: buf.build/community/google-gnostic-openapi
+    out: api/openapi/v1
+    opt:
+      - version=0.0.0
+      - naming=proto
+"#;
+        let result = inject_version_yaml(input, "1.2.3").unwrap();
+        assert!(
+            result.contains("version=1.2.3"),
+            "version should be replaced"
+        );
+        assert!(
+            !result.contains("version=0.0.0"),
+            "old version should be gone"
+        );
+    }
+
+    #[test]
+    fn inject_version_multiple_plugins() {
+        let input = r#"
+plugins:
+  - remote: plugin-a
+    opt:
+      - version=0.0.0
+  - remote: plugin-b
+    opt:
+      - version=0.0.0
+"#;
+        let result = inject_version_yaml(input, "2.0.0").unwrap();
+        let count = result.matches("version=2.0.0").count();
+        assert_eq!(count, 2, "both plugins should be updated");
+    }
+
+    #[test]
+    fn inject_version_no_version_opt_errors() {
+        let input = r#"
+plugins:
+  - remote: plugin-a
+    opt:
+      - naming=proto
+"#;
+        let result = inject_version_yaml(input, "1.0.0");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No `version=`"));
+    }
+
+    #[test]
+    fn inject_version_no_plugins_errors() {
+        let input = "version: v2\n";
+        let result = inject_version_yaml(input, "1.0.0");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn inject_version_invalid_yaml_errors() {
+        let result = inject_version_yaml("{{invalid yaml", "1.0.0");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_cargo_version_package() {
+        let path = write_temp_file(
+            "cargo_pkg.toml",
+            "[package]\nname = \"test\"\nversion = \"3.2.1\"\n",
+        );
+        let version = read_cargo_version(&path).unwrap();
+        assert_eq!(version, "3.2.1");
+    }
+
+    #[test]
+    fn read_cargo_version_workspace() {
+        let path = write_temp_file(
+            "cargo_ws.toml",
+            "[workspace.package]\nversion = \"0.5.0\"\nedition = \"2021\"\n",
+        );
+        let version = read_cargo_version(&path).unwrap();
+        assert_eq!(version, "0.5.0");
+    }
+
+    #[test]
+    fn read_cargo_version_missing_errors() {
+        let path = write_temp_file("cargo_no_ver.toml", "[package]\nname = \"test\"\n");
+        let result = read_cargo_version(&path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No version"));
+    }
+
+    #[test]
+    fn resolve_version_explicit() {
+        let v = "1.0.0".to_string();
+        let result = resolve_version(Some(&v), None).unwrap();
+        assert_eq!(result, "1.0.0");
+    }
+
+    #[test]
+    fn resolve_version_explicit_takes_precedence() {
+        let v = "2.0.0".to_string();
+        let cargo = PathBuf::from("nonexistent.toml");
+        // explicit wins even if cargo_toml is provided
+        let result = resolve_version(Some(&v), Some(&cargo)).unwrap();
+        assert_eq!(result, "2.0.0");
+    }
+
+    #[test]
+    fn resolve_version_from_cargo_toml() {
+        let path = write_temp_file(
+            "cargo_resolve.toml",
+            "[package]\nname = \"test\"\nversion = \"4.0.0\"\n",
+        );
+        let result = resolve_version(None, Some(&path)).unwrap();
+        assert_eq!(result, "4.0.0");
+    }
+}

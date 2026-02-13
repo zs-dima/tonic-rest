@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-02-13
+
+### Changed
+
+- **tonic-rest-core**: Extract shared descriptor types into dedicated crate
+- **tonic-rest-build**: Re-export descriptors from `tonic-rest-core`
+- **tonic-rest-openapi**: Use `tonic-rest-core` instead of `tonic-rest-build`; promote discovery types to public API; add `test-support` feature gate
+
 ## [0.1.1] - 2026-02-13
 
 ### Changed
@@ -35,5 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `PatchConfig` / `ProjectConfig` for programmatic and file-based configuration
   - CLI binary with `generate`, `patch`, `discover`, `inject-version` subcommands (behind `cli` feature)
 
+[Unreleased]: https://github.com/zs-dima/tonic-rest/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/zs-dima/tonic-rest/releases/tag/v0.1.2
 [0.1.1]: https://github.com/zs-dima/tonic-rest/releases/tag/v0.1.1
 [0.1.0]: https://github.com/zs-dima/tonic-rest/releases/tag/v0.1.0
