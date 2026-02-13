@@ -7,9 +7,19 @@
 
 OpenAPI 3.1 spec generation and patching from protobuf descriptors for Tonic gRPC services.
 
+Part of the [tonic-rest](https://github.com/zs-dima/tonic-rest) ecosystem — define your API once in proto files, get gRPC, REST, and OpenAPI 3.1.
+
 Reads compiled protobuf `FileDescriptorSet` bytes and a gnostic-generated OpenAPI YAML spec,
 then applies a configurable pipeline of transforms to produce a clean OpenAPI 3.1 spec that
 matches the runtime REST behavior.
+
+## Key Features
+
+- **Proto as single source of truth** — OpenAPI spec derived from the same proto files that drive gRPC and REST
+- **12-phase transform pipeline** — produces a clean OpenAPI 3.1 spec with security, validation constraints, and SSE annotations
+- **Google error model** — injects structured error schemas matching runtime `RestError` JSON responses
+- **Security built-in** — auto-generates Bearer JWT security scheme with public endpoint overrides
+- **Library + CLI** — use programmatically in your build pipeline or as a standalone CI tool
 
 ## Pipeline
 
@@ -142,4 +152,8 @@ migration may be warranted.
 | tonic-rest-openapi | tonic-rest-build | prost | MSRV |
 | ------------------ | ---------------- | ----- | ---- |
 | 0.1.x              | 0.1              | 0.14  | 1.82 |
+
+## License
+
+[MIT](LICENSE)
 

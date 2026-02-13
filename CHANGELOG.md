@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-13
+
+### Changed
+
+- Improved crate README documentation with key features and ecosystem context for crates.io
+
 ## [0.1.0] - 2026-02-13
 
 ### Added
@@ -29,4 +35,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `PatchConfig` / `ProjectConfig` for programmatic and file-based configuration
   - CLI binary with `generate`, `patch`, `discover`, `inject-version` subcommands (behind `cli` feature)
 
+[0.1.1]: https://github.com/zs-dima/tonic-rest/releases/tag/v0.1.1
 [0.1.0]: https://github.com/zs-dima/tonic-rest/releases/tag/v0.1.0

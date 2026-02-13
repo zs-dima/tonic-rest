@@ -7,9 +7,20 @@
 
 Build-time REST codegen from protobuf `google.api.http` annotations for Tonic + Axum.
 
+Part of the [tonic-rest](https://github.com/zs-dima/tonic-rest) ecosystem — define your API once in proto files, get gRPC, REST, and OpenAPI 3.1.
+
 Reads a compiled proto `FileDescriptorSet`, extracts `google.api.http` annotations,
 and generates Axum route handler code that calls through Tonic service traits — keeping
 proto files as the single source of truth for both gRPC and REST APIs.
+
+## Key Features
+
+- **Proto as single source of truth** — one definition drives gRPC, REST endpoints, and OpenAPI docs
+- **Build-time codegen** — Axum handlers generated from `FileDescriptorSet` at compile time; zero runtime overhead or reflection
+- **Standard annotations** — uses [`google.api.http`](https://cloud.google.com/endpoints/docs/grpc/transcoding) bindings, not a proprietary DSL
+- **Zero-config auto-discovery** — scans the descriptor set for any service with HTTP annotations; no manual package listing required
+- **SSE for server streaming** — streaming RPCs are automatically exposed as Server-Sent Events endpoints
+- **Serde auto-wiring** — `configure_prost_serde` discovers WKT fields and applies `#[serde(with)]` attributes automatically
 
 ## Quick Start
 
@@ -157,4 +168,8 @@ see [auth-service-rs](https://github.com/zs-dima/auth-service-rs).
 | tonic-rest-build | prost / prost-build | tonic | axum | MSRV |
 | ---------------- | ------------------- | ----- | ---- | ---- |
 | 0.1.x            | 0.14                | 0.14  | 0.8  | 1.82 |
+
+## License
+
+[MIT](LICENSE)
 

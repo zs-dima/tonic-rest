@@ -7,9 +7,19 @@
 
 Runtime types for REST + SSE endpoints generated from protobuf `google.api.http` annotations.
 
+Part of the [tonic-rest](https://github.com/zs-dima/tonic-rest) ecosystem — define your API once in proto files, get gRPC, REST, and OpenAPI 3.1.
+
 This crate provides the shared types that generated Axum handlers reference at runtime.
 The companion crate [`tonic-rest-build`](https://crates.io/crates/tonic-rest-build)
 generates the handler code at build time.
+
+## Key Features
+
+- **Google error model** — gRPC errors map to structured JSON responses following the [Google API error model](https://cloud.google.com/apis/design/errors)
+- **SSE for server streaming** — server-streaming RPCs are automatically exposed as Server-Sent Events endpoints
+- **Request bridging** — `build_tonic_request` forwards headers, extensions (e.g. auth info), and metadata from Axum to Tonic
+- **Serde adapters** — ready-made `#[serde(with)]` modules for `Timestamp`, `Duration`, `FieldMask`, and proto3 enums
+- **Zero runtime reflection** — all handler code is generated at build time by companion `tonic-rest-build`
 
 ## Types
 
@@ -68,5 +78,9 @@ For a complete end-to-end example, see [auth-service-rs](https://github.com/zs-d
 | tonic-rest | tonic | axum | prost-types | MSRV |
 | ---------- | ----- | ---- | ----------- | ---- |
 | 0.1.x      | 0.14  | 0.8  | 0.14        | 1.82 |
+
+## License
+
+[MIT](LICENSE)
 
 
