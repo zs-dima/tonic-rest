@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/tonic-rest-core.svg)](https://crates.io/crates/tonic-rest-core)
 [![docs.rs](https://img.shields.io/docsrs/tonic-rest-core)](https://docs.rs/tonic-rest-core)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.82-blue.svg)](https://blog.rust-lang.org/2024/10/17/Rust-1.82.0.html)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 
 Shared protobuf descriptor types for the [tonic-rest](https://github.com/zs-dima/tonic-rest) ecosystem.
 

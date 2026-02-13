@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/tonic-rest.svg)](https://crates.io/crates/tonic-rest)
 [![docs.rs](https://img.shields.io/docsrs/tonic-rest)](https://docs.rs/tonic-rest)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.82-blue.svg)](https://blog.rust-lang.org/2024/10/17/Rust-1.82.0.html)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 
 Runtime types for REST + SSE endpoints generated from protobuf `google.api.http` annotations.
 
@@ -99,7 +99,7 @@ For a complete end-to-end example, see [auth-service-rs](https://github.com/zs-d
 
 | tonic-rest | tonic | axum | prost-types | MSRV |
 | ---------- | ----- | ---- | ----------- | ---- |
-| 0.1.x      | 0.14  | 0.8  | 0.14        | 1.82 |
+| 0.1.x      | 0.14  | 0.8  | 0.14        | 1.85 |
 
 ## License
 

@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/tonic-rest-build.svg)](https://crates.io/crates/tonic-rest-build)
 [![docs.rs](https://img.shields.io/docsrs/tonic-rest-build)](https://docs.rs/tonic-rest-build)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
-[![MSRV](https://img.shields.io/badge/MSRV-1.82-blue.svg)](https://blog.rust-lang.org/2024/10/17/Rust-1.82.0.html)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 
 Build-time REST codegen from protobuf `google.api.http` annotations for Tonic + Axum.
 
@@ -199,7 +199,7 @@ see [auth-service-rs](https://github.com/zs-dima/auth-service-rs).
 
 | tonic-rest-build | prost / prost-build | tonic | axum | MSRV |
 | ---------------- | ------------------- | ----- | ---- | ---- |
-| 0.1.x            | 0.14                | 0.14  | 0.8  | 1.82 |
+| 0.1.x            | 0.14                | 0.14  | 0.8  | 1.85 |
 
 ## License
 
