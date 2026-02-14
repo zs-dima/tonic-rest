@@ -517,11 +517,26 @@ pub fn patch(input_yaml: &str, config: &PatchConfig<'_>) -> error::Result<String
     validation::strip_path_fields_from_body(&mut doc);
     validation::enrich_path_params(&mut doc, &config.metadata.path_param_constraints);
 
-    // Phase 11: Request body inlining
+    // Phase 11: Request body handling
+    //
+    // When inlining is enabled, request body schemas are inlined into
+    // operations with per-property examples and the originals are removed
+    // as orphans. When disabled, component schemas are enriched with
+    // per-property examples in-place so they remain visible in the
+    // Schemas section of Swagger UI.
+    //
+    // Empty body removal and orphan cleanup always run regardless of the
+    // inlining mode — path-field stripping (phase 10) can leave empty
+    // bodies, and self-referential schema clusters (e.g., google.rpc.Status)
+    // should always be pruned.
     if config.transforms.inline_request_bodies {
         cleanup::inline_request_bodies(&mut doc);
-        cleanup::remove_empty_inlined_request_bodies(&mut doc);
+    } else {
+        cleanup::enrich_schema_examples(&mut doc);
     }
+    cleanup::enrich_inline_request_body_examples(&mut doc);
+    cleanup::remove_empty_inlined_request_bodies(&mut doc);
+    cleanup::remove_orphaned_schemas(&mut doc);
 
     // Phase 12: Final normalization
     if config.transforms.normalize_line_endings {

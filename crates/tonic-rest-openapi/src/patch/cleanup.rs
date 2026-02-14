@@ -746,7 +746,7 @@ fn generate_field_example(name: &str, prop: &Value, schemas: &serde_yaml_ng::Map
 /// override examples in your config.
 fn example_from_field_name(name: &str) -> Option<Value> {
     let lower = name.to_lowercase();
-    if lower.contains("password") || lower.contains("secret") {
+    if lower.contains("password") {
         // Differentiate password examples so "currentPassword" vs "newPassword"
         // don't show identical values (confusing for API consumers).
         if lower.starts_with("new") {
@@ -754,6 +754,8 @@ fn example_from_field_name(name: &str) -> Option<Value> {
         }
         return Some(val_s("P@ssw0rd123!"));
     }
+    // `secret` alone is ambiguous (TOTP secret, API secret, etc.) —
+    // only match when combined with `password` (handled above).
     if lower == "identifier" || lower.contains("email") {
         return Some(val_s("user@example.com"));
     }
@@ -766,7 +768,16 @@ fn example_from_field_name(name: &str) -> Option<Value> {
     if lower.contains("token") {
         return Some(val_s("eyJhbGciOiJIUzI1NiIs..."));
     }
-    if lower == "code" {
+    // `code` alone is ambiguous (OAuth authorization code, error code,
+    // verification code, etc.). Match more specific names instead.
+    if lower == "otp"
+        || lower.contains("verification_code")
+        || lower.contains("verificationcode")
+        || lower.contains("mfa_code")
+        || lower.contains("mfacode")
+        || lower.contains("totp_code")
+        || lower.contains("totpcode")
+    {
         return Some(val_s("123456"));
     }
     if lower == "query" || lower == "search" {
@@ -793,7 +804,7 @@ fn example_from_field_name(name: &str) -> Option<Value> {
     if lower == "language" || lower == "lang" {
         return Some(val_s("en"));
     }
-    if lower == "country" {
+    if lower == "country" || lower == "ipcountry" || lower == "ip_country" {
         return Some(val_s("US"));
     }
     if lower.contains("idempotency") || lower.contains("request_id") || lower == "requestid" {
@@ -808,7 +819,12 @@ fn example_from_field_name(name: &str) -> Option<Value> {
     if lower.contains("hostname") || lower == "host" {
         return Some(val_s("api.example.com"));
     }
-    if lower == "ip" || lower.contains("ip_address") || lower.contains("ipaddress") {
+    if lower == "ip"
+        || lower.contains("ip_address")
+        || lower.contains("ipaddress")
+        || lower.starts_with("ip_created")
+        || lower.starts_with("ipcreated")
+    {
         return Some(val_s("192.168.1.1"));
     }
     if lower.contains("user_agent") || lower.contains("useragent") {
@@ -824,50 +840,344 @@ fn example_from_field_name(name: &str) -> Option<Value> {
     if lower == "etag" {
         return Some(val_s("\"33a64df551425fcc55e4d42a148795d9f25f89d4\""));
     }
+    // Device / session metadata heuristics
+    if lower == "deviceid" || lower == "device_id" {
+        return Some(val_s("a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+    }
+    if lower == "devicename" || lower == "device_name" {
+        return Some(val_s("iPhone 15 Pro"));
+    }
+    if lower == "devicetype" || lower == "device_type" {
+        return Some(val_s("mobile"));
+    }
+    if lower == "installationid" || lower == "installation_id" {
+        return Some(val_s(UUID_EXAMPLE));
+    }
     None
 }
 
-/// Remove component schemas that are no longer referenced by any `$ref`.
+/// Enrich component schema properties with heuristic-based example values.
 ///
-/// Runs in a loop to handle cascading orphans. Limited to 100 iterations
-/// to guard against malformed specs with circular `$ref` chains.
-fn remove_orphaned_schemas(doc: &mut Value) {
-    const MAX_ROUNDS: usize = 100;
-    for _ in 0..MAX_ROUNDS {
-        let all_names: Vec<String> = schemas(doc)
-            .map(|schema_map| {
-                schema_map
-                    .keys()
-                    .filter_map(|k| k.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
+/// Adds per-property `example` annotations to all schemas in
+/// `components/schemas`, using field-name heuristics (email → `"user@example.com"`,
+/// password → `"P@ssw0rd123!"`, etc.) and type-based defaults (enums, booleans,
+/// integers, dates).
+///
+/// Only adds examples that provide real documentation value — generic string
+/// fields without a matching heuristic are left without examples to avoid noise.
+///
+/// Skips properties that:
+/// - Already have an `example` (e.g., UUID fields from Phase 8)
+/// - Use `allOf`/`oneOf`/`$ref` (referenced schemas are enriched separately)
+pub fn enrich_schema_examples(doc: &mut Value) {
+    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
 
-        if all_names.is_empty() {
-            break;
-        }
+    let Some(schema_map) = schemas_mut(doc) else {
+        return;
+    };
 
-        let mut referenced = std::collections::HashSet::new();
-        collect_refs(doc, &mut referenced);
+    let names: Vec<String> = schema_map
+        .iter()
+        .filter_map(|(k, _)| k.as_str().map(str::to_string))
+        .collect();
 
-        let orphans: Vec<String> = all_names
-            .into_iter()
-            .filter(|name| {
-                let ref_str = format!("#/components/schemas/{name}");
-                !referenced.contains(&ref_str)
-            })
+    for name in &names {
+        let Some(props) = schema_map
+            .get_mut(name.as_str())
+            .and_then(Value::as_mapping_mut)
+            .and_then(|s| s.get_mut("properties"))
+            .and_then(Value::as_mapping_mut)
+        else {
+            continue;
+        };
+
+        let prop_names: Vec<String> = props
+            .iter()
+            .filter_map(|(k, _)| k.as_str().map(str::to_string))
             .collect();
 
-        if orphans.is_empty() {
-            break;
-        }
+        for prop_name in &prop_names {
+            let Some(prop) = props
+                .get_mut(prop_name.as_str())
+                .and_then(Value::as_mapping_mut)
+            else {
+                continue;
+            };
 
+            // Skip if already has an example
+            if prop.contains_key("example") {
+                continue;
+            }
+
+            // Skip composite properties — referenced schemas get their own examples
+            if prop.contains_key("allOf")
+                || prop.contains_key("oneOf")
+                || prop.contains_key("$ref")
+                || prop.contains_key("properties")
+            {
+                continue;
+            }
+
+            if let Some(example) = meaningful_field_example(
+                prop_name,
+                &Value::Mapping(prop.clone()),
+                &schemas_snapshot,
+            ) {
+                prop.insert(val_s("example"), example);
+            }
+        }
+    }
+}
+
+/// Enrich inline request-body schemas with per-property examples.
+///
+/// Some operations (e.g., those with path parameters extracted from the request
+/// message) end up with inline `type: object` request bodies rather than a
+/// `$ref` to a named schema. [`enrich_schema_examples`] only touches named
+/// component schemas, so this function fills the gap for inline bodies using
+/// the same [`meaningful_field_example`] heuristics.
+pub fn enrich_inline_request_body_examples(doc: &mut Value) {
+    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
+
+    for_each_operation(doc, |_path, _method, op_map| {
+        // Navigate: requestBody → content → application/json → schema → properties
+        let Some(props) = op_map
+            .get_mut("requestBody")
+            .and_then(Value::as_mapping_mut)
+            .and_then(|rb| rb.get_mut("content"))
+            .and_then(Value::as_mapping_mut)
+            .and_then(|c| c.get_mut("application/json"))
+            .and_then(Value::as_mapping_mut)
+            .and_then(|mt| mt.get_mut("schema"))
+            .and_then(Value::as_mapping_mut)
+            // Only inline bodies (has `properties`), not $ref bodies
+            .filter(|s| s.contains_key("properties") && !s.contains_key("$ref"))
+            .and_then(|s| s.get_mut("properties"))
+            .and_then(Value::as_mapping_mut)
+        else {
+            return;
+        };
+
+        let prop_names: Vec<String> = props
+            .iter()
+            .filter_map(|(k, _)| k.as_str().map(str::to_string))
+            .collect();
+
+        for prop_name in &prop_names {
+            let Some(prop) = props
+                .get_mut(prop_name.as_str())
+                .and_then(Value::as_mapping_mut)
+            else {
+                continue;
+            };
+
+            if prop.contains_key("example") {
+                continue;
+            }
+
+            if prop.contains_key("allOf")
+                || prop.contains_key("oneOf")
+                || prop.contains_key("$ref")
+                || prop.contains_key("properties")
+            {
+                continue;
+            }
+
+            if let Some(example) = meaningful_field_example(
+                prop_name,
+                &Value::Mapping(prop.clone()),
+                &schemas_snapshot,
+            ) {
+                prop.insert(val_s("example"), example);
+            }
+        }
+    });
+}
+
+/// Generate a meaningful example for a field, returning `None` for generic defaults.
+///
+/// Unlike [`generate_field_example`] (which always returns a value, including a
+/// generic `"string"` fallback), this only returns examples that add real
+/// documentation value: name-based heuristics, enum values, UUIDs, dates,
+/// booleans, integers, etc.
+fn meaningful_field_example(
+    name: &str,
+    prop: &Value,
+    schemas: &serde_yaml_ng::Mapping,
+) -> Option<Value> {
+    let map = prop.as_mapping();
+
+    let field_type = map
+        .and_then(|m| m.get("type"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    let format = map
+        .and_then(|m| m.get("format"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    // UUID
+    if format == "uuid" {
+        return Some(val_s(UUID_EXAMPLE));
+    }
+
+    // Date-time
+    if format == "date-time" {
+        return Some(val_s("2026-01-15T09:30:00Z"));
+    }
+
+    // Field mask
+    if format == "field-mask" {
+        return example_from_field_name(name).or_else(|| Some(val_s("name,email")));
+    }
+
+    // Enum — first non-unspecified value
+    if let Some(enum_vals) = map.and_then(|m| m.get("enum")).and_then(Value::as_sequence) {
+        return enum_vals
+            .iter()
+            .find(|v| v.as_str().is_none_or(|s| s != "unspecified"))
+            .or_else(|| enum_vals.first())
+            .cloned();
+    }
+
+    // Boolean
+    if field_type == "boolean" {
+        return Some(Value::Bool(true));
+    }
+
+    // Integer
+    if field_type == "integer" {
+        let min = map
+            .and_then(|m| m.get("minimum"))
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        return Some(Value::Number(min.into()));
+    }
+
+    // Array — only produce examples when items have meaningful values
+    // (enums, UUIDs, dates, etc.). Skip $ref arrays (referenced schema has
+    // its own examples) and plain-string arrays (["string"] is noise).
+    if field_type == "array" {
+        if let Some(items) = map.and_then(|m| m.get("items")) {
+            let is_ref = items
+                .as_mapping()
+                .is_some_and(|m| m.contains_key("$ref") || m.contains_key("allOf"));
+            if is_ref {
+                return None;
+            }
+            let item_example = meaningful_field_example("item", items, schemas)?;
+            return Some(Value::Sequence(vec![item_example]));
+        }
+        return None;
+    }
+
+    // additionalProperties map
+    if map.and_then(|m| m.get("additionalProperties")).is_some() {
+        let mut obj = serde_yaml_ng::Mapping::new();
+        obj.insert(val_s("key"), val_s("value"));
+        return Some(Value::Mapping(obj));
+    }
+
+    // Name-based heuristics (only meaningful matches, None for unknowns)
+    example_from_field_name(name)
+}
+
+/// Remove component schemas that are no longer referenced from outside
+/// `components/schemas`.
+///
+/// Uses a reachability analysis: first collects "root" schemas referenced
+/// directly from paths, responses, parameters, etc. Then transitively follows
+/// `$ref` chains within `components/schemas` to find all reachable schemas.
+/// Any schema not in this reachable set is an orphan — including
+/// self-referential clusters like `google.rpc.Status` ↔ `google.protobuf.Any`
+/// that have no external consumers.
+pub fn remove_orphaned_schemas(doc: &mut Value) {
+    let all_names: Vec<String> = schemas(doc)
+        .map(|schema_map| {
+            schema_map
+                .keys()
+                .filter_map(|k| k.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if all_names.is_empty() {
+        return;
+    }
+
+    // Step 1: collect $refs from everywhere EXCEPT components.schemas
+    let external_refs = collect_external_schema_refs(doc);
+
+    // Step 2: seed the reachable set with externally-referenced schema names
+    let prefix = "#/components/schemas/";
+    let mut reachable: std::collections::HashSet<String> = external_refs
+        .iter()
+        .filter_map(|r| r.strip_prefix(prefix).map(str::to_string))
+        .collect();
+
+    // Step 3: transitively follow $refs inside reachable schemas
+    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
+    let mut frontier: Vec<String> = reachable.iter().cloned().collect();
+    while let Some(name) = frontier.pop() {
+        if let Some(schema_val) = schemas_snapshot.get(name.as_str()) {
+            let mut inner_refs = std::collections::HashSet::new();
+            collect_refs(schema_val, &mut inner_refs);
+            for r in inner_refs {
+                if let Some(dep) = r.strip_prefix(prefix) {
+                    if reachable.insert(dep.to_string()) {
+                        frontier.push(dep.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 4: remove unreachable schemas
+    let orphans: Vec<String> = all_names
+        .into_iter()
+        .filter(|name| !reachable.contains(name.as_str()))
+        .collect();
+
+    if !orphans.is_empty() {
         if let Some(schema_map) = schemas_mut(doc) {
             for name in &orphans {
                 schema_map.remove(name.as_str());
             }
         }
     }
+}
+
+/// Collect `$ref` strings from every part of the document EXCEPT
+/// `components.schemas`.
+///
+/// This lets [`remove_orphaned_schemas`] detect self-referential schema
+/// clusters that have no external consumers (e.g., `google.rpc.Status` →
+/// `google.protobuf.Any` where neither is used by any path or response).
+fn collect_external_schema_refs(doc: &Value) -> std::collections::HashSet<String> {
+    let mut refs = std::collections::HashSet::new();
+
+    let Some(root) = doc.as_mapping() else {
+        return refs;
+    };
+
+    for (key, value) in root {
+        let key_str = key.as_str().unwrap_or_default();
+        if key_str == "components" {
+            // Walk components but skip the `schemas` sub-key
+            if let Some(comp_map) = value.as_mapping() {
+                for (comp_key, comp_val) in comp_map {
+                    if comp_key.as_str() != Some("schemas") {
+                        collect_refs(comp_val, &mut refs);
+                    }
+                }
+            }
+        } else {
+            collect_refs(value, &mut refs);
+        }
+    }
+
+    refs
 }
 
 #[cfg(test)]
@@ -1272,6 +1582,168 @@ paths:
     }
 
     #[test]
+    fn schema_examples_enriched() {
+        let yaml = r"
+components:
+  schemas:
+    test.v1.Request:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+        active:
+          type: boolean
+        count:
+          type: integer
+          format: int32
+        userId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        nested:
+          allOf:
+          - $ref: '#/components/schemas/test.v1.Nested'
+        items:
+          type: array
+          items:
+            type: string
+        unknownField:
+          type: string
+    test.v1.Nested:
+      type: object
+      properties:
+        value:
+          type: string
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        enrich_schema_examples(&mut doc);
+
+        let props = doc["components"]["schemas"]["test.v1.Request"]["properties"]
+            .as_mapping()
+            .unwrap();
+
+        // Name-based heuristic: email
+        assert_eq!(
+            props["email"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "user@example.com"
+        );
+
+        // Name-based heuristic: password
+        assert_eq!(
+            props["password"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "P@ssw0rd123!"
+        );
+
+        // Name-based heuristic: name
+        assert_eq!(
+            props["name"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "John Doe"
+        );
+
+        // Enum: first value
+        assert_eq!(
+            props["status"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "active"
+        );
+
+        // Boolean
+        assert!(
+            props["active"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_bool()
+                .unwrap()
+        );
+
+        // Integer
+        assert_eq!(
+            props["count"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_u64()
+                .unwrap(),
+            0
+        );
+
+        // Existing example preserved (not overwritten)
+        assert_eq!(
+            props["userId"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            UUID_EXAMPLE
+        );
+
+        // allOf ref: no example added
+        assert!(
+            !props["nested"]
+                .as_mapping()
+                .unwrap()
+                .contains_key("example"),
+            "allOf properties should not get examples"
+        );
+
+        // Plain string array: no example (avoids ["string"] noise)
+        assert!(
+            props["items"]
+                .as_mapping()
+                .unwrap()
+                .get("example")
+                .is_none(),
+            "plain string array should NOT get example"
+        );
+
+        // Unknown string field: no example (no heuristic match)
+        assert!(
+            !props["unknownField"]
+                .as_mapping()
+                .unwrap()
+                .contains_key("example"),
+            "unknown string fields should not get generic examples"
+        );
+    }
+
+    #[test]
     fn operation_summaries_populated() {
         let yaml = r"
 paths:
@@ -1361,6 +1833,491 @@ components:
             !vals
                 .iter()
                 .any(|v| v.as_str().is_some_and(|s| s == "unspecified"))
+        );
+    }
+
+    #[test]
+    fn self_referential_cluster_removed() {
+        let yaml = r#"
+paths:
+  /v1/test:
+    get:
+      operationId: TestService_Get
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/test.v1.Response'
+components:
+  schemas:
+    test.v1.Response:
+      type: object
+      properties:
+        name:
+          type: string
+    google.rpc.Status:
+      type: object
+      properties:
+        code:
+          type: integer
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.Any'
+    google.protobuf.Any:
+      type: object
+      properties:
+        '@type':
+          type: string
+      additionalProperties: true
+"#;
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        remove_orphaned_schemas(&mut doc);
+
+        let schema_map = schemas(&doc).unwrap();
+        assert!(
+            schema_map.contains_key("test.v1.Response"),
+            "externally-referenced schema should survive"
+        );
+        assert!(
+            !schema_map.contains_key("google.rpc.Status"),
+            "self-referential cluster member should be removed"
+        );
+        assert!(
+            !schema_map.contains_key("google.protobuf.Any"),
+            "self-referential cluster member should be removed"
+        );
+    }
+
+    #[test]
+    fn orphan_removal_preserves_cross_component_refs() {
+        // A schema referenced from a response component (not paths) should survive.
+        let yaml = r#"
+paths:
+  /v1/test:
+    get:
+      responses:
+        '200':
+          $ref: '#/components/responses/OkResponse'
+components:
+  responses:
+    OkResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/test.v1.Data'
+  schemas:
+    test.v1.Data:
+      type: object
+      properties:
+        id:
+          type: string
+    test.v1.Orphan:
+      type: object
+      properties:
+        unused:
+          type: string
+"#;
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        remove_orphaned_schemas(&mut doc);
+
+        let schema_map = schemas(&doc).unwrap();
+        assert!(
+            schema_map.contains_key("test.v1.Data"),
+            "schema referenced from response component should survive"
+        );
+        assert!(
+            !schema_map.contains_key("test.v1.Orphan"),
+            "unreferenced schema should be removed"
+        );
+    }
+
+    #[test]
+    fn orphan_removal_preserves_transitive_schema_refs() {
+        // Schema A is referenced from a path. Schema A references Schema B
+        // via allOf. Schema B should NOT be removed as an orphan.
+        let yaml = r#"
+paths:
+  /v1/test:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/test.v1.Parent'
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    test.v1.Parent:
+      type: object
+      properties:
+        child:
+          allOf:
+          - $ref: '#/components/schemas/test.v1.Child'
+    test.v1.Child:
+      type: object
+      properties:
+        name:
+          type: string
+    test.v1.Orphan:
+      type: object
+      properties:
+        unused:
+          type: string
+"#;
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        remove_orphaned_schemas(&mut doc);
+
+        let schema_map = schemas(&doc).unwrap();
+        assert!(
+            schema_map.contains_key("test.v1.Parent"),
+            "directly-referenced schema should survive"
+        );
+        assert!(
+            schema_map.contains_key("test.v1.Child"),
+            "transitively-referenced schema should survive"
+        );
+        assert!(
+            !schema_map.contains_key("test.v1.Orphan"),
+            "unreferenced schema should be removed"
+        );
+    }
+
+    #[test]
+    fn array_ref_items_skip_example_in_enrichment() {
+        let yaml = r#"
+components:
+  schemas:
+    test.v1.Parent:
+      type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/test.v1.Child'
+        tags:
+          type: array
+          items:
+            type: string
+    test.v1.Child:
+      type: object
+      properties:
+        name:
+          type: string
+"#;
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        enrich_schema_examples(&mut doc);
+
+        let props = doc["components"]["schemas"]["test.v1.Parent"]["properties"]
+            .as_mapping()
+            .unwrap();
+
+        // Array with $ref items: should NOT get an example (avoid ["string"] noise)
+        assert!(
+            !props["children"]
+                .as_mapping()
+                .unwrap()
+                .contains_key("example"),
+            "array with $ref items should not get example"
+        );
+
+        // Array with plain string items: should NOT get an example (avoids ["string"] noise)
+        assert!(
+            !props["tags"].as_mapping().unwrap().contains_key("example"),
+            "plain string array should not get [\"string\"] example"
+        );
+    }
+
+    #[test]
+    fn code_field_is_ambiguous_returns_none() {
+        // The bare `code` field name is ambiguous (OAuth code, error code,
+        // verification code) — should not get a heuristic example.
+        assert!(
+            example_from_field_name("code").is_none(),
+            "bare 'code' should not match a heuristic"
+        );
+    }
+
+    #[test]
+    fn secret_field_is_ambiguous_returns_none() {
+        // `secret` alone is ambiguous (TOTP secret, API secret, etc.)
+        assert!(
+            example_from_field_name("secret").is_none(),
+            "bare 'secret' should not match password heuristic"
+        );
+    }
+
+    #[test]
+    fn password_field_still_matches() {
+        assert_eq!(
+            example_from_field_name("password")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "P@ssw0rd123!"
+        );
+        assert_eq!(
+            example_from_field_name("newPassword")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "N3wP@ssw0rd!456"
+        );
+        assert_eq!(
+            example_from_field_name("currentPassword")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "P@ssw0rd123!"
+        );
+    }
+
+    #[test]
+    fn device_field_heuristics() {
+        assert_eq!(
+            example_from_field_name("deviceId")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        );
+        assert_eq!(
+            example_from_field_name("device_id")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        );
+        assert_eq!(
+            example_from_field_name("deviceName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "iPhone 15 Pro"
+        );
+        assert_eq!(
+            example_from_field_name("deviceType")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "mobile"
+        );
+    }
+
+    #[test]
+    fn ip_country_heuristic() {
+        assert_eq!(
+            example_from_field_name("ipCountry")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "US"
+        );
+        assert_eq!(
+            example_from_field_name("ip_country")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "US"
+        );
+    }
+
+    #[test]
+    fn ip_created_by_heuristic() {
+        assert_eq!(
+            example_from_field_name("ipCreatedBy")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "192.168.1.1"
+        );
+        assert_eq!(
+            example_from_field_name("ip_created_by")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "192.168.1.1"
+        );
+    }
+
+    #[test]
+    fn installation_id_heuristic() {
+        assert_eq!(
+            example_from_field_name("installationId")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            UUID_EXAMPLE
+        );
+    }
+
+    #[test]
+    fn verification_code_specific_names() {
+        assert_eq!(
+            example_from_field_name("otp").unwrap().as_str().unwrap(),
+            "123456"
+        );
+        assert_eq!(
+            example_from_field_name("verificationCode")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "123456"
+        );
+        assert_eq!(
+            example_from_field_name("mfaCode")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "123456"
+        );
+    }
+
+    #[test]
+    fn empty_inlined_bodies_removed_unconditionally() {
+        let yaml = r"
+paths:
+  /v1/confirm:
+    post:
+      operationId: TestService_Confirm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        remove_empty_inlined_request_bodies(&mut doc);
+
+        let op = doc["paths"]["/v1/confirm"]["post"].as_mapping().unwrap();
+        assert!(
+            !op.contains_key("requestBody"),
+            "empty inlined request body should be removed"
+        );
+    }
+
+    #[test]
+    fn plain_string_array_skips_example() {
+        let yaml = r"
+components:
+  schemas:
+    test.v1.Req:
+      type: object
+      properties:
+        scopes:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            enum:
+              - a
+              - b
+            type: string
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        enrich_schema_examples(&mut doc);
+
+        let scopes = &doc["components"]["schemas"]["test.v1.Req"]["properties"]["scopes"];
+        assert!(
+            scopes.as_mapping().unwrap().get("example").is_none(),
+            "plain string array should NOT get [\"string\"] example"
+        );
+
+        let tags = &doc["components"]["schemas"]["test.v1.Req"]["properties"]["tags"];
+        let tag_ex = tags["example"].as_sequence().unwrap();
+        assert_eq!(tag_ex[0].as_str().unwrap(), "a");
+    }
+
+    #[test]
+    fn inline_body_properties_enriched() {
+        let yaml = r"
+paths:
+  /v1/users/{id}:
+    patch:
+      operationId: UserService_Update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                email:
+                  type: string
+                  maxLength: 254
+                password:
+                  type: string
+                  writeOnly: true
+";
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        enrich_inline_request_body_examples(&mut doc);
+
+        let schema = &doc["paths"]["/v1/users/{id}"]["patch"]["requestBody"]["content"]["application/json"]
+            ["schema"]["properties"];
+
+        assert_eq!(
+            schema["name"]["example"].as_str().unwrap(),
+            "John Doe",
+            "name should get heuristic example"
+        );
+        assert_eq!(
+            schema["email"]["example"].as_str().unwrap(),
+            "user@example.com",
+            "email should get heuristic example"
+        );
+        assert_eq!(
+            schema["password"]["example"].as_str().unwrap(),
+            "P@ssw0rd123!",
+            "password should get heuristic example"
+        );
+    }
+
+    #[test]
+    fn inline_body_skips_ref_bodies() {
+        let yaml = r#"
+paths:
+  /v1/auth/login:
+    post:
+      operationId: AuthService_Login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/auth.v1.LoginRequest'
+components:
+  schemas:
+    auth.v1.LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+"#;
+        let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
+        enrich_inline_request_body_examples(&mut doc);
+
+        // The $ref body should not be touched (it doesn't have inline properties)
+        let body_schema = &doc["paths"]["/v1/auth/login"]["post"]["requestBody"]["content"]["application/json"]
+            ["schema"];
+        assert!(
+            body_schema.as_mapping().unwrap().contains_key("$ref"),
+            "should remain a $ref, not be modified"
+        );
+        // Named schema should NOT have been enriched by this function
+        let email_prop =
+            &doc["components"]["schemas"]["auth.v1.LoginRequest"]["properties"]["email"];
+        assert!(
+            email_prop.as_mapping().unwrap().get("example").is_none(),
+            "enrich_inline_request_body_examples should not touch named schemas"
         );
     }
 }
