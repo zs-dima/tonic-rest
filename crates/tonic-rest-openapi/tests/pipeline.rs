@@ -29,7 +29,17 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/foo:
+    get:
+      operationId: FooService_GetFoo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Foo'
 components:
   schemas:
     Foo:
@@ -119,7 +129,18 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/auth/signup:
+    post:
+      operationId: AuthService_SignUp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/test.v1.SignUpRequest'
+      responses:
+        '200':
+          description: OK
 components:
   schemas:
     test.v1.SignUpRequest:
@@ -276,6 +297,10 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/users.v1.User'
 components:
   schemas:
     users.v1.User:
@@ -852,7 +877,17 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/users:
+    get:
+      operationId: UserService_GetUser
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/users.v1.User'
 components:
   schemas:
     users.v1.User:
@@ -896,7 +931,17 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/users:
+    get:
+      operationId: UserService_GetUser
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/users.v1.User'
 components:
   schemas:
     users.v1.User:
@@ -948,7 +993,17 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/config:
+    get:
+      operationId: ConfigService_GetConfig
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/test.v1.Config'
 components:
   schemas:
     test.v1.Config:
@@ -985,7 +1040,17 @@ openapi: 3.0.3
 info:
   title: Test
   version: 0.1.0
-paths: {}
+paths:
+  /v1/sessions:
+    get:
+      operationId: SessionService_GetSession
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/test.v1.Session'
 components:
   schemas:
     google.protobuf.Duration:
