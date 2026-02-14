@@ -744,6 +744,7 @@ fn generate_field_example(name: &str, prop: &Value, schemas: &serde_yaml_ng::Map
 /// Only universal patterns are matched (email, password, name, URL, etc.).
 /// For domain-specific field naming, post-process the generated spec or
 /// override examples in your config.
+#[allow(clippy::too_many_lines)]
 fn example_from_field_name(name: &str) -> Option<Value> {
     let lower = name.to_lowercase();
     if lower.contains("password") {
@@ -1000,6 +1001,7 @@ pub fn enrich_inline_request_body_examples(doc: &mut Value) {
 /// generic `"string"` fallback), this only returns examples that add real
 /// documentation value: name-based heuristics, enum values, UUIDs, dates,
 /// booleans, integers, etc.
+#[allow(clippy::only_used_in_recursion)]
 fn meaningful_field_example(
     name: &str,
     prop: &Value,
@@ -1582,6 +1584,7 @@ paths:
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn schema_examples_enriched() {
         let yaml = r"
 components:
@@ -1838,7 +1841,7 @@ components:
 
     #[test]
     fn self_referential_cluster_removed() {
-        let yaml = r#"
+        let yaml = r"
 paths:
   /v1/test:
     get:
@@ -1872,7 +1875,7 @@ components:
         '@type':
           type: string
       additionalProperties: true
-"#;
+";
         let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
         remove_orphaned_schemas(&mut doc);
 
@@ -1894,7 +1897,7 @@ components:
     #[test]
     fn orphan_removal_preserves_cross_component_refs() {
         // A schema referenced from a response component (not paths) should survive.
-        let yaml = r#"
+        let yaml = r"
 paths:
   /v1/test:
     get:
@@ -1920,7 +1923,7 @@ components:
       properties:
         unused:
           type: string
-"#;
+";
         let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
         remove_orphaned_schemas(&mut doc);
 
@@ -1939,7 +1942,7 @@ components:
     fn orphan_removal_preserves_transitive_schema_refs() {
         // Schema A is referenced from a path. Schema A references Schema B
         // via allOf. Schema B should NOT be removed as an orphan.
-        let yaml = r#"
+        let yaml = r"
 paths:
   /v1/test:
     post:
@@ -1969,7 +1972,7 @@ components:
       properties:
         unused:
           type: string
-"#;
+";
         let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
         remove_orphaned_schemas(&mut doc);
 
@@ -1990,7 +1993,7 @@ components:
 
     #[test]
     fn array_ref_items_skip_example_in_enrichment() {
-        let yaml = r#"
+        let yaml = r"
 components:
   schemas:
     test.v1.Parent:
@@ -2009,7 +2012,7 @@ components:
       properties:
         name:
           type: string
-"#;
+";
         let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
         enrich_schema_examples(&mut doc);
 
@@ -2284,7 +2287,7 @@ paths:
 
     #[test]
     fn inline_body_skips_ref_bodies() {
-        let yaml = r#"
+        let yaml = r"
 paths:
   /v1/auth/login:
     post:
@@ -2301,7 +2304,7 @@ components:
       properties:
         email:
           type: string
-"#;
+";
         let mut doc: Value = serde_yaml_ng::from_str(yaml).unwrap();
         enrich_inline_request_body_examples(&mut doc);
 
