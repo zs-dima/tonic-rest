@@ -320,13 +320,13 @@ pub fn mark_unimplemented_operations(
             );
         }
 
-        if let Some(responses) = op_map.get_mut("responses").and_then(Value::as_mapping_mut)
-            && !responses.contains_key("501")
-        {
-            responses.insert(
-                val_s("501"),
-                json_response_with_schema_ref("Not Implemented", error_schema_ref),
-            );
+        if let Some(responses) = op_map.get_mut("responses").and_then(Value::as_mapping_mut) {
+            if !responses.contains_key("501") {
+                responses.insert(
+                    val_s("501"),
+                    json_response_with_schema_ref("Not Implemented", error_schema_ref),
+                );
+            }
         }
     });
 }
