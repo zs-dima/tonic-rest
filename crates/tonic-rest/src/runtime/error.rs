@@ -62,7 +62,7 @@ pub struct RestError(tonic::Status);
 
 impl std::fmt::Display for RestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", grpc_code_name(self.0.code()), self.0.message(),)
+        write!(f, "{}: {}", grpc_code_name(self.0.code()), self.0.message())
     }
 }
 
@@ -75,13 +75,13 @@ impl std::error::Error for RestError {
 impl RestError {
     /// Create a new `RestError` from a [`tonic::Status`].
     #[must_use]
-    pub fn new(status: tonic::Status) -> Self {
+    pub const fn new(status: tonic::Status) -> Self {
         Self(status)
     }
 
     /// Returns a reference to the underlying [`tonic::Status`].
     #[must_use]
-    pub fn status(&self) -> &tonic::Status {
+    pub const fn status(&self) -> &tonic::Status {
         &self.0
     }
 

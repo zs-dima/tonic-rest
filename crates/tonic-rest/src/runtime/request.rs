@@ -43,7 +43,7 @@ pub const CLOUDFLARE_HEADERS: &[&str] = &["cf-connecting-ip"];
 /// assert_eq!(names.len(), 4);
 /// ```
 #[must_use]
-pub fn forwarded_header_names() -> [HeaderName; 4] {
+pub const fn forwarded_header_names() -> [HeaderName; 4] {
     [
         HeaderName::from_static("authorization"),
         HeaderName::from_static("user-agent"),
@@ -63,7 +63,7 @@ pub fn forwarded_header_names() -> [HeaderName; 4] {
 /// assert_eq!(names.len(), 1);
 /// ```
 #[must_use]
-pub fn cloudflare_header_names() -> [HeaderName; 1] {
+pub const fn cloudflare_header_names() -> [HeaderName; 1] {
     [HeaderName::from_static("cf-connecting-ip")]
 }
 

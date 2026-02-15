@@ -106,9 +106,11 @@ impl RestCodegenConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
     use std::path::PathBuf;
+
+    use pretty_assertions::assert_eq;
+    use prost::Message;
     use tonic_rest_core::descriptor::{
         DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto, FieldDescriptorProto,
         FileDescriptorProto, FileDescriptorSet, HttpPattern, HttpRule, MethodDescriptorProto,
@@ -117,6 +119,7 @@ mod tests {
 
     use super::extract::{collect_field_types, convert_to_axum_path, extract_path_params};
     use super::types::{FieldTypeInfo, ParamAssignment};
+    use super::*;
 
     /// Build a method descriptor with an HTTP annotation.
     fn make_method(
@@ -345,7 +348,7 @@ mod tests {
     #[test]
     fn test_extract_path_params_nested() {
         let config = RestCodegenConfig::new().wrapper_type("crate::core::Uuid");
-        let field_types = std::collections::HashMap::new();
+        let field_types = HashMap::new();
         let params = extract_path_params(
             "/v1/users/{user_id.value}/password",
             ".users.v1.Foo",
@@ -364,7 +367,7 @@ mod tests {
     #[test]
     fn test_extract_path_params_string_field() {
         let config = RestCodegenConfig::new();
-        let mut msg_fields = std::collections::HashMap::new();
+        let mut msg_fields = HashMap::new();
         msg_fields.insert(
             "device_id".to_string(),
             FieldTypeInfo {
@@ -372,7 +375,7 @@ mod tests {
                 enum_type_name: None,
             },
         );
-        let mut field_types = std::collections::HashMap::new();
+        let mut field_types = HashMap::new();
         field_types.insert(".auth.v1.RevokeSessionRequest".to_string(), msg_fields);
 
         let params = extract_path_params(
@@ -393,7 +396,7 @@ mod tests {
     #[test]
     fn test_extract_path_params_enum_field() {
         let config = RestCodegenConfig::new();
-        let mut msg_fields = std::collections::HashMap::new();
+        let mut msg_fields = HashMap::new();
         msg_fields.insert(
             "provider".to_string(),
             FieldTypeInfo {
@@ -401,7 +404,7 @@ mod tests {
                 enum_type_name: Some(".auth.v1.OAuthProvider".to_string()),
             },
         );
-        let mut field_types = std::collections::HashMap::new();
+        let mut field_types = HashMap::new();
         field_types.insert(
             ".auth.v1.UnlinkOAuthProviderRequest".to_string(),
             msg_fields,
@@ -431,7 +434,7 @@ mod tests {
     #[test]
     fn path_params_multiple() {
         let config = RestCodegenConfig::new().wrapper_type("crate::core::Uuid");
-        let mut msg_fields = std::collections::HashMap::new();
+        let mut msg_fields = HashMap::new();
         msg_fields.insert(
             "role".to_string(),
             FieldTypeInfo {
@@ -439,7 +442,7 @@ mod tests {
                 enum_type_name: None,
             },
         );
-        let mut field_types = std::collections::HashMap::new();
+        let mut field_types = HashMap::new();
         field_types.insert(".test.v1.Req".to_string(), msg_fields);
 
         let params = extract_path_params(
@@ -465,7 +468,7 @@ mod tests {
     #[test]
     fn path_params_no_params() {
         let config = RestCodegenConfig::new();
-        let field_types = std::collections::HashMap::new();
+        let field_types = HashMap::new();
         let params =
             extract_path_params("/v1/items", ".test.v1.Req", &field_types, &config).unwrap();
         assert!(params.is_empty());
@@ -474,7 +477,7 @@ mod tests {
     #[test]
     fn path_params_unknown_field_defaults_to_string() {
         let config = RestCodegenConfig::new();
-        let field_types = std::collections::HashMap::new(); // no field info
+        let field_types = HashMap::new(); // no field info
         let params =
             extract_path_params("/v1/items/{item_id}", ".test.v1.Req", &field_types, &config)
                 .unwrap();
@@ -488,7 +491,7 @@ mod tests {
     #[test]
     fn path_params_int32_field_produces_typed_param() {
         let config = RestCodegenConfig::new();
-        let mut msg_fields = std::collections::HashMap::new();
+        let mut msg_fields = HashMap::new();
         msg_fields.insert(
             "page".to_string(),
             FieldTypeInfo {
@@ -496,7 +499,7 @@ mod tests {
                 enum_type_name: None,
             },
         );
-        let mut field_types = std::collections::HashMap::new();
+        let mut field_types = HashMap::new();
         field_types.insert(".test.v1.ListRequest".to_string(), msg_fields);
 
         let params = extract_path_params(
@@ -522,7 +525,7 @@ mod tests {
     #[test]
     fn path_params_bool_field_produces_typed_param() {
         let config = RestCodegenConfig::new();
-        let mut msg_fields = std::collections::HashMap::new();
+        let mut msg_fields = HashMap::new();
         msg_fields.insert(
             "active".to_string(),
             FieldTypeInfo {
@@ -530,7 +533,7 @@ mod tests {
                 enum_type_name: None,
             },
         );
-        let mut field_types = std::collections::HashMap::new();
+        let mut field_types = HashMap::new();
         field_types.insert(".test.v1.Req".to_string(), msg_fields);
 
         let params =

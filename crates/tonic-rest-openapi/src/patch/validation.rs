@@ -532,7 +532,7 @@ pub fn inject_validation_constraints(doc: &mut Value, constraints: &[SchemaConst
 /// other operations referencing the same schema), this inlines a modified
 /// copy of the schema into each operation that has path parameters.
 /// Operations without path parameters keep referencing the original schema.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub fn strip_path_fields_from_body(doc: &mut Value) {
     // Phase 1: collect operation locations and their path fields + schema refs
     struct StripInfo {
@@ -708,7 +708,6 @@ fn normalize_name_for_match(name: &str) -> String {
 }
 
 /// Enrich path parameters with constraints from proto field definitions.
-#[allow(clippy::case_sensitive_file_extension_comparisons)] // proto type names, not file paths
 pub fn enrich_path_params(doc: &mut Value, path_params: &[PathParamInfo]) {
     for_each_operation(doc, |path, _method, op_map| {
         let Some(params) = op_map

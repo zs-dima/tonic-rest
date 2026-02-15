@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 /// Parsed service info from proto descriptors.
 #[derive(Debug)]
-pub(crate) struct ServiceRoute {
+pub struct ServiceRoute {
     /// Rust module name for the service package (e.g., "auth", "users")
     pub package_mod: String,
     /// Proto service name (e.g., `AuthService`, `UserService`)
@@ -14,7 +14,7 @@ pub(crate) struct ServiceRoute {
 }
 
 #[derive(Debug)]
-pub(crate) struct MethodRoute {
+pub struct MethodRoute {
     /// Proto method name (e.g., `ListUsers`)
     pub proto_name: String,
     /// Method name in `snake_case` (e.g., `list_users`)
@@ -41,7 +41,7 @@ pub(crate) struct MethodRoute {
 
 /// A path parameter extracted from the URL pattern.
 #[derive(Debug)]
-pub(crate) struct PathParam {
+pub struct PathParam {
     /// Axum param name (e.g., `user_id_value`)
     pub axum_name: String,
     /// How to assign this param to the request body
@@ -50,7 +50,7 @@ pub(crate) struct PathParam {
 
 /// How a path parameter maps to a proto request field.
 #[derive(Debug)]
-pub(crate) enum ParamAssignment {
+pub enum ParamAssignment {
     /// Nested UUID wrapper: `{user_id.value}` → `body.user_id = Some(Uuid { value })`
     UuidWrapper { parent_field: String },
     /// Simple string field: `{device_id}` → `body.device_id = device_id`
@@ -71,11 +71,11 @@ pub(crate) enum ParamAssignment {
 
 /// Per-field type info: proto type id + optional fully-qualified enum type name.
 #[derive(Debug, Clone)]
-pub(crate) struct FieldTypeInfo {
+pub struct FieldTypeInfo {
     pub type_id: i32,
     /// For enum fields: the FQN (e.g., `.auth.v1.OAuthProvider`)
     pub enum_type_name: Option<String>,
 }
 
 /// Map of fully-qualified message name → field name → field type info.
-pub(crate) type MessageFieldTypes = HashMap<String, HashMap<String, FieldTypeInfo>>;
+pub type MessageFieldTypes = HashMap<String, HashMap<String, FieldTypeInfo>>;

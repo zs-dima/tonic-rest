@@ -151,10 +151,10 @@ pub struct ExternalDocsInfo {
 /// Individual transform on/off switches (all default to `true`).
 ///
 /// Controls which phases of the 12-phase pipeline run. Each toggle maps to
-/// one or more pipeline phases. See [`patch()`](crate::patch) for phase ordering.
+/// one or more pipeline phases. See [`patch()`](crate::patch()) for phase ordering.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct TransformConfig {
     /// Upgrade `OpenAPI` 3.0 → 3.1 (phase 1).
     ///

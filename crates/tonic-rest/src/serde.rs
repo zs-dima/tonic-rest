@@ -68,12 +68,14 @@ pub mod opt_timestamp {
         D: Deserializer<'de>,
     {
         let opt: Option<String> = Option::deserialize(deserializer)?;
-        match opt {
-            Some(s) => super::timestamp::deserialize_str(&s)
-                .map(Some)
-                .map_err(serde::de::Error::custom),
-            None => Ok(None),
-        }
+        opt.map_or_else(
+            || Ok(None),
+            |s| {
+                super::timestamp::deserialize_str(&s)
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            },
+        )
     }
 }
 
@@ -127,12 +129,11 @@ pub mod timestamp {
     /// Parse a `Timestamp` from an RFC 3339 string.
     pub(crate) fn deserialize_str(s: &str) -> Result<Timestamp, String> {
         let dt = chrono::DateTime::parse_from_rfc3339(s).map_err(|e| e.to_string())?;
-        // Safety: `timestamp_subsec_nanos()` returns 0..=999_999_999 which
-        // always fits in `i32` (max 2_147_483_647).
-        #[allow(clippy::cast_possible_wrap)]
+        // `timestamp_subsec_nanos()` returns 0..=999_999_999 which always fits in `i32`.
         Ok(Timestamp {
             seconds: dt.timestamp(),
-            nanos: dt.timestamp_subsec_nanos() as i32,
+            nanos: i32::try_from(dt.timestamp_subsec_nanos())
+                .expect("subsec nanos always fits i32"),
         })
     }
 
@@ -190,12 +191,14 @@ pub mod opt_duration {
         D: Deserializer<'de>,
     {
         let opt: Option<String> = Option::deserialize(deserializer)?;
-        match opt {
-            Some(s) => super::duration::deserialize_str(&s)
-                .map(Some)
-                .map_err(serde::de::Error::custom),
-            None => Ok(None),
-        }
+        opt.map_or_else(
+            || Ok(None),
+            |s| {
+                super::duration::deserialize_str(&s)
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            },
+        )
     }
 }
 
@@ -204,10 +207,10 @@ pub mod opt_duration {
 /// Follows the protobuf JSON mapping: `"300s"`, `"1.500s"`, `"0s"`.
 /// Per proto3 spec, `seconds` and `nanos` must have the same sign.
 ///
-/// # Panics
+/// # Correctness
 ///
-/// Does not panic, but produces incorrect output for non-canonical `Duration`
-/// values where `seconds` and `nanos` have different signs (e.g.,
+/// Produces incorrect output for non-canonical `Duration` values where
+/// `seconds` and `nanos` have different signs (e.g.,
 /// `Duration { seconds: 5, nanos: -100 }`). The proto3 spec guarantees
 /// same-sign values; this adapter relies on that invariant.
 ///
@@ -250,12 +253,11 @@ pub mod duration {
         let negative = value.seconds < 0 || value.nanos < 0;
         let abs_secs = value.seconds.unsigned_abs();
         let abs_nanos = value.nanos.unsigned_abs();
+        let sign = if negative { "-" } else { "" };
 
         if abs_nanos == 0 {
-            let sign = if negative { "-" } else { "" };
             serializer.serialize_str(&format!("{sign}{abs_secs}s"))
         } else {
-            let sign = if negative { "-" } else { "" };
             let frac = format!("{abs_nanos:09}");
             let trimmed = frac.trim_end_matches('0');
             serializer.serialize_str(&format!("{sign}{abs_secs}.{trimmed}s"))
@@ -452,18 +454,19 @@ pub mod field_mask {
     /// Convert `camelCase` → `snake_case`, handling consecutive uppercase (acronyms).
     fn camel_to_snake(s: &str) -> String {
         let mut result = String::with_capacity(s.len() + 4);
-        let chars: Vec<char> = s.chars().collect();
-        for (i, &ch) in chars.iter().enumerate() {
+        let mut chars = s.chars().peekable();
+        let mut prev_was_lower = false;
+        while let Some(ch) = chars.next() {
             if ch.is_uppercase() {
-                if i > 0
-                    && (chars[i - 1].is_lowercase()
-                        || (i + 1 < chars.len() && chars[i + 1].is_lowercase()))
-                {
+                let next_is_lower = chars.peek().is_some_and(|c| c.is_lowercase());
+                if prev_was_lower || next_is_lower {
                     result.push('_');
                 }
                 result.extend(ch.to_lowercase());
+                prev_was_lower = false;
             } else {
                 result.push(ch);
+                prev_was_lower = ch.is_lowercase();
             }
         }
         result
@@ -605,7 +608,7 @@ macro_rules! define_enum_serde {
                 use serde::{Deserializer, Serializer};
 
                 /// Serialize an optional proto enum `i32` as a wire string.
-                #[allow(clippy::ref_option)] // serde `with` protocol requires `&Option<T>`
+                #[expect(clippy::ref_option)] // serde `with` protocol requires `&Option<T>`
                 pub fn serialize<S: Serializer>(
                     value: &Option<i32>,
                     serializer: S,
@@ -739,7 +742,7 @@ mod tests {
     }
 
     impl TestStatus {
-        #[allow(clippy::trivially_copy_pass_by_ref)] // matches prost-generated API
+        #[expect(clippy::trivially_copy_pass_by_ref)] // matches prost-generated API
         fn as_str_name(&self) -> &'static str {
             match self {
                 Self::Unspecified => "TEST_STATUS_UNSPECIFIED",
@@ -783,7 +786,7 @@ mod tests {
     }
 
     impl HealthStatus {
-        #[allow(clippy::trivially_copy_pass_by_ref)]
+        #[expect(clippy::trivially_copy_pass_by_ref)]
         fn as_str_name(&self) -> &'static str {
             match self {
                 Self::Unspecified => "HEALTH_STATUS_UNSPECIFIED",

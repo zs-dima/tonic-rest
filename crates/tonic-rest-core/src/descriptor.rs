@@ -26,7 +26,13 @@
 //! - [`HttpRule`] / [`HttpPattern`] — the `google.api.http` annotation itself
 //! - [`FieldOptions`] / [`FieldRules`] — `validate.rules` constraints
 
-#[allow(clippy::all, clippy::pedantic, clippy::nursery, missing_docs)]
+#[allow(
+    clippy::derive_partial_eq_without_eq,
+    clippy::doc_markdown,
+    clippy::module_name_repetitions,
+    clippy::similar_names,
+    missing_docs
+)]
 mod types {
     use prost::Message;
 

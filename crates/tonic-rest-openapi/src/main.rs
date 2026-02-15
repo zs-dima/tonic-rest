@@ -62,7 +62,7 @@ enum Cli {
 }
 
 #[derive(Parser)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 struct PatchArgs {
     /// Path to the compiled proto `FileDescriptorSet` (binary).
     #[arg(short, long)]
@@ -400,7 +400,7 @@ fn apply_cli_overrides<'a>(mut config: PatchConfig<'a>, args: &PatchArgs) -> Pat
     }
 
     // Scalar overrides
-    if let Some(ref schema_ref) = args.error_schema_ref {
+    if let Some(schema_ref) = &args.error_schema_ref {
         config = config.error_schema_ref(schema_ref);
     }
 

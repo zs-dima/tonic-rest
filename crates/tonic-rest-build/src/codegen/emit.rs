@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 use super::config::RestCodegenConfig;
 use super::types::{MethodRoute, ParamAssignment, ServiceRoute};
 
-pub(crate) fn generate_code(services: &[ServiceRoute], config: &RestCodegenConfig) -> String {
+pub fn generate_code(services: &[ServiceRoute], config: &RestCodegenConfig) -> String {
     let mut code = String::with_capacity(16_384);
 
     write_header(&mut code, services, config);
@@ -211,7 +211,7 @@ fn generate_sse_handler(
     let _ = write!(
         code,
         "\
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+#[expect(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `{proto_name}` — SSE streaming endpoint.
 ///
 /// `{http_method} {path}` → `text/event-stream`
@@ -301,7 +301,7 @@ fn generate_json_handler(
     let _ = write!(
         code,
         "\
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+#[expect(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `{proto_name}` — JSON endpoint.
 ///
 /// `{http_method} {path}`

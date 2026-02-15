@@ -8,6 +8,9 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[cfg(feature = "test-support")]
+use std::collections::HashMap;
+
 mod config;
 pub(crate) use tonic_rest_core::descriptor;
 mod discover;
@@ -59,7 +62,7 @@ impl ProtoMetadata {
     }
 
     /// Set enum value map (test helper).
-    pub fn set_enum_value_map(&mut self, map: std::collections::HashMap<String, String>) {
+    pub fn set_enum_value_map(&mut self, map: HashMap<String, String>) {
         self.enum_value_map = map;
     }
 }

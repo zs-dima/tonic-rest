@@ -10,7 +10,7 @@ use super::types::{
 };
 
 /// Auto-discover packages from a descriptor set by finding services with HTTP annotations.
-pub(crate) fn discover_packages(fdset: &FileDescriptorSet) -> HashMap<String, String> {
+pub fn discover_packages(fdset: &FileDescriptorSet) -> HashMap<String, String> {
     let mut packages = HashMap::new();
 
     for file in &fdset.file {
@@ -46,7 +46,7 @@ fn infer_rust_module(package: &str) -> String {
 }
 
 /// Build a lookup table: fully-qualified message name → { `field_name` → field type info }.
-pub(crate) fn collect_field_types(fdset: &FileDescriptorSet) -> MessageFieldTypes {
+pub fn collect_field_types(fdset: &FileDescriptorSet) -> MessageFieldTypes {
     let mut map = HashMap::new();
 
     for file in &fdset.file {
@@ -92,7 +92,7 @@ fn collect_message_fields(
     }
 }
 
-pub(crate) fn extract_services(
+pub fn extract_services(
     fdset: &FileDescriptorSet,
     field_types: &MessageFieldTypes,
     config: &RestCodegenConfig,
@@ -253,7 +253,7 @@ pub(super) fn extract_path_params(
 /// Map proto field type IDs to Rust scalar types for path parameter extraction.
 ///
 /// Returns `None` for `STRING` (uses `String` as default) and unsupported types.
-fn proto_type_to_rust_scalar(type_id: i32) -> Option<&'static str> {
+const fn proto_type_to_rust_scalar(type_id: i32) -> Option<&'static str> {
     match type_id {
         field_type::INT32 => Some("i32"),
         field_type::INT64 => Some("i64"),

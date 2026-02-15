@@ -190,131 +190,131 @@ impl<'a> PatchConfig<'a> {
 
     /// Enable or disable the 3.0 → 3.1 upgrade transform.
     #[must_use]
-    pub fn upgrade_to_3_1(mut self, enabled: bool) -> Self {
+    pub const fn upgrade_to_3_1(mut self, enabled: bool) -> Self {
         self.transforms.upgrade_to_3_1 = enabled;
         self
     }
 
     /// Enable or disable SSE streaming annotation.
     #[must_use]
-    pub fn annotate_sse(mut self, enabled: bool) -> Self {
+    pub const fn annotate_sse(mut self, enabled: bool) -> Self {
         self.transforms.annotate_sse = enabled;
         self
     }
 
     /// Enable or disable validation constraint injection.
     #[must_use]
-    pub fn inject_validation(mut self, enabled: bool) -> Self {
+    pub const fn inject_validation(mut self, enabled: bool) -> Self {
         self.transforms.inject_validation = enabled;
         self
     }
 
     /// Enable or disable security scheme addition.
     #[must_use]
-    pub fn add_security(mut self, enabled: bool) -> Self {
+    pub const fn add_security(mut self, enabled: bool) -> Self {
         self.transforms.add_security = enabled;
         self
     }
 
     /// Enable or disable request body inlining.
     #[must_use]
-    pub fn inline_request_bodies(mut self, enabled: bool) -> Self {
+    pub const fn inline_request_bodies(mut self, enabled: bool) -> Self {
         self.transforms.inline_request_bodies = enabled;
         self
     }
 
     /// Enable or disable UUID wrapper flattening.
     #[must_use]
-    pub fn flatten_uuid_refs(mut self, enabled: bool) -> Self {
+    pub const fn flatten_uuid_refs(mut self, enabled: bool) -> Self {
         self.transforms.flatten_uuid_refs = enabled;
         self
     }
 
     /// Enable or disable CRLF → LF normalization.
     #[must_use]
-    pub fn normalize_line_endings(mut self, enabled: bool) -> Self {
+    pub const fn normalize_line_endings(mut self, enabled: bool) -> Self {
         self.transforms.normalize_line_endings = enabled;
         self
     }
 
     /// Enable or disable server/info injection.
     #[must_use]
-    pub fn inject_servers(mut self, enabled: bool) -> Self {
+    pub const fn inject_servers(mut self, enabled: bool) -> Self {
         self.transforms.inject_servers = enabled;
         self
     }
 
     /// Enable or disable `200` → `201 Created` rewrite.
     #[must_use]
-    pub fn rewrite_create_responses(mut self, enabled: bool) -> Self {
+    pub const fn rewrite_create_responses(mut self, enabled: bool) -> Self {
         self.transforms.rewrite_create_responses = enabled;
         self
     }
 
     /// Enable or disable `writeOnly`/`readOnly` field annotation.
     #[must_use]
-    pub fn annotate_field_access(mut self, enabled: bool) -> Self {
+    pub const fn annotate_field_access(mut self, enabled: bool) -> Self {
         self.transforms.annotate_field_access = enabled;
         self
     }
 
     /// Skip the 3.0 → 3.1 upgrade transform.
     #[must_use]
-    pub fn skip_upgrade(self) -> Self {
+    pub const fn skip_upgrade(self) -> Self {
         self.upgrade_to_3_1(false)
     }
 
     /// Skip SSE streaming annotation.
     #[must_use]
-    pub fn skip_sse(self) -> Self {
+    pub const fn skip_sse(self) -> Self {
         self.annotate_sse(false)
     }
 
     /// Skip validation constraint injection.
     #[must_use]
-    pub fn skip_validation(self) -> Self {
+    pub const fn skip_validation(self) -> Self {
         self.inject_validation(false)
     }
 
     /// Skip security scheme addition.
     #[must_use]
-    pub fn skip_security(self) -> Self {
+    pub const fn skip_security(self) -> Self {
         self.add_security(false)
     }
 
     /// Skip request body inlining.
     #[must_use]
-    pub fn skip_inline_request_bodies(self) -> Self {
+    pub const fn skip_inline_request_bodies(self) -> Self {
         self.inline_request_bodies(false)
     }
 
     /// Skip UUID wrapper flattening.
     #[must_use]
-    pub fn skip_uuid_flattening(self) -> Self {
+    pub const fn skip_uuid_flattening(self) -> Self {
         self.flatten_uuid_refs(false)
     }
 
     /// Skip CRLF → LF normalization.
     #[must_use]
-    pub fn skip_line_ending_normalization(self) -> Self {
+    pub const fn skip_line_ending_normalization(self) -> Self {
         self.normalize_line_endings(false)
     }
 
     /// Skip server/info injection.
     #[must_use]
-    pub fn skip_servers(self) -> Self {
+    pub const fn skip_servers(self) -> Self {
         self.inject_servers(false)
     }
 
     /// Skip `200` → `201 Created` rewrite.
     #[must_use]
-    pub fn skip_create_response_rewrite(self) -> Self {
+    pub const fn skip_create_response_rewrite(self) -> Self {
         self.rewrite_create_responses(false)
     }
 
     /// Skip `writeOnly`/`readOnly` field annotation.
     #[must_use]
-    pub fn skip_field_access_annotation(self) -> Self {
+    pub const fn skip_field_access_annotation(self) -> Self {
         self.annotate_field_access(false)
     }
 

@@ -1,5 +1,7 @@
 //! Shared YAML manipulation helpers used across transform modules.
 
+use std::collections::HashSet;
+
 use serde_yaml_ng::Value;
 
 /// UUID v4 regex pattern for OpenAPI schema `pattern` fields.
@@ -161,7 +163,7 @@ pub fn snake_to_lower_camel_dotted(s: &str) -> String {
 }
 
 /// Recursively walk a YAML value tree and collect all `$ref` string values.
-pub fn collect_refs(value: &Value, refs: &mut std::collections::HashSet<String>) {
+pub fn collect_refs(value: &Value, refs: &mut HashSet<String>) {
     match value {
         Value::Mapping(map) => {
             for (k, v) in map {

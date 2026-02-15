@@ -265,10 +265,9 @@ impl RestCodegenConfig {
     /// With `extension_type("Foo")`: `"    ext: Option<Extension<Foo>>,\n"`
     /// Without:                      `""`
     pub(crate) fn extension_extractor_line(&self) -> String {
-        match &self.extension_type {
-            Some(ty) => format!("    ext: Option<Extension<{ty}>>,\n"),
-            None => String::new(),
-        }
+        self.extension_type.as_ref().map_or_else(String::new, |ty| {
+            format!("    ext: Option<Extension<{ty}>>,\n")
+        })
     }
 
     /// Return the extension binding + `build_tonic_request` call for the handler body.

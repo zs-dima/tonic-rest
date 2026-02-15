@@ -31,7 +31,7 @@ where
         .with_state(service)
 }
 
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+#[expect(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `Login` — JSON endpoint.
 ///
 /// `POST /v1/auth/login`
@@ -64,7 +64,7 @@ where
         .with_state(service)
 }
 
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+#[expect(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 /// `ListUsers` — SSE streaming endpoint.
 ///
 /// `GET /v1/users` → `text/event-stream`

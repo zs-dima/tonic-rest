@@ -8,7 +8,7 @@
 //! - `format: enum` noise removal
 //! - Request body inlining with example generation
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_yaml_ng::Value;
 
@@ -320,13 +320,13 @@ pub fn mark_unimplemented_operations(
             );
         }
 
-        if let Some(responses) = op_map.get_mut("responses").and_then(Value::as_mapping_mut) {
-            if !responses.contains_key("501") {
-                responses.insert(
-                    val_s("501"),
-                    json_response_with_schema_ref("Not Implemented", error_schema_ref),
-                );
-            }
+        if let Some(responses) = op_map.get_mut("responses").and_then(Value::as_mapping_mut)
+            && !responses.contains_key("501")
+        {
+            responses.insert(
+                val_s("501"),
+                json_response_with_schema_ref("Not Implemented", error_schema_ref),
+            );
         }
     });
 }
@@ -400,7 +400,7 @@ pub fn remove_unused_empty_schemas(doc: &mut Value) {
         return;
     }
 
-    let mut referenced = std::collections::HashSet::new();
+    let mut referenced = HashSet::new();
     collect_refs(doc, &mut referenced);
 
     let orphans: Vec<String> = empty
@@ -744,7 +744,7 @@ fn generate_field_example(name: &str, prop: &Value, schemas: &serde_yaml_ng::Map
 /// Only universal patterns are matched (email, password, name, URL, etc.).
 /// For domain-specific field naming, post-process the generated spec or
 /// override examples in your config.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn example_from_field_name(name: &str) -> Option<Value> {
     let lower = name.to_lowercase();
     if lower.contains("password") {
@@ -871,8 +871,6 @@ fn example_from_field_name(name: &str) -> Option<Value> {
 /// - Already have an `example` (e.g., UUID fields from Phase 8)
 /// - Use `allOf`/`oneOf`/`$ref` (referenced schemas are enriched separately)
 pub fn enrich_schema_examples(doc: &mut Value) {
-    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
-
     let Some(schema_map) = schemas_mut(doc) else {
         return;
     };
@@ -919,11 +917,9 @@ pub fn enrich_schema_examples(doc: &mut Value) {
                 continue;
             }
 
-            if let Some(example) = meaningful_field_example(
-                prop_name,
-                &Value::Mapping(prop.clone()),
-                &schemas_snapshot,
-            ) {
+            if let Some(example) =
+                meaningful_field_example(prop_name, &Value::Mapping(prop.clone()))
+            {
                 prop.insert(val_s("example"), example);
             }
         }
@@ -938,8 +934,6 @@ pub fn enrich_schema_examples(doc: &mut Value) {
 /// component schemas, so this function fills the gap for inline bodies using
 /// the same [`meaningful_field_example`] heuristics.
 pub fn enrich_inline_request_body_examples(doc: &mut Value) {
-    let schemas_snapshot: serde_yaml_ng::Mapping = schemas(doc).cloned().unwrap_or_default();
-
     for_each_operation(doc, |_path, _method, op_map| {
         // Navigate: requestBody → content → application/json → schema → properties
         let Some(props) = op_map
@@ -984,11 +978,9 @@ pub fn enrich_inline_request_body_examples(doc: &mut Value) {
                 continue;
             }
 
-            if let Some(example) = meaningful_field_example(
-                prop_name,
-                &Value::Mapping(prop.clone()),
-                &schemas_snapshot,
-            ) {
+            if let Some(example) =
+                meaningful_field_example(prop_name, &Value::Mapping(prop.clone()))
+            {
                 prop.insert(val_s("example"), example);
             }
         }
@@ -1001,12 +993,7 @@ pub fn enrich_inline_request_body_examples(doc: &mut Value) {
 /// generic `"string"` fallback), this only returns examples that add real
 /// documentation value: name-based heuristics, enum values, UUIDs, dates,
 /// booleans, integers, etc.
-#[allow(clippy::only_used_in_recursion)]
-fn meaningful_field_example(
-    name: &str,
-    prop: &Value,
-    schemas: &serde_yaml_ng::Mapping,
-) -> Option<Value> {
+fn meaningful_field_example(name: &str, prop: &Value) -> Option<Value> {
     let map = prop.as_mapping();
 
     let field_type = map
@@ -1068,7 +1055,7 @@ fn meaningful_field_example(
             if is_ref {
                 return None;
             }
-            let item_example = meaningful_field_example("item", items, schemas)?;
+            let item_example = meaningful_field_example("item", items)?;
             return Some(Value::Sequence(vec![item_example]));
         }
         return None;
@@ -1113,7 +1100,7 @@ pub fn remove_orphaned_schemas(doc: &mut Value) {
 
     // Step 2: seed the reachable set with externally-referenced schema names
     let prefix = "#/components/schemas/";
-    let mut reachable: std::collections::HashSet<String> = external_refs
+    let mut reachable: HashSet<String> = external_refs
         .iter()
         .filter_map(|r| r.strip_prefix(prefix).map(str::to_string))
         .collect();
@@ -1123,7 +1110,7 @@ pub fn remove_orphaned_schemas(doc: &mut Value) {
     let mut frontier: Vec<String> = reachable.iter().cloned().collect();
     while let Some(name) = frontier.pop() {
         if let Some(schema_val) = schemas_snapshot.get(name.as_str()) {
-            let mut inner_refs = std::collections::HashSet::new();
+            let mut inner_refs = HashSet::new();
             collect_refs(schema_val, &mut inner_refs);
             for r in inner_refs {
                 if let Some(dep) = r.strip_prefix(prefix) {
@@ -1156,8 +1143,8 @@ pub fn remove_orphaned_schemas(doc: &mut Value) {
 /// This lets [`remove_orphaned_schemas`] detect self-referential schema
 /// clusters that have no external consumers (e.g., `google.rpc.Status` →
 /// `google.protobuf.Any` where neither is used by any path or response).
-fn collect_external_schema_refs(doc: &Value) -> std::collections::HashSet<String> {
-    let mut refs = std::collections::HashSet::new();
+fn collect_external_schema_refs(doc: &Value) -> HashSet<String> {
+    let mut refs = HashSet::new();
 
     let Some(root) = doc.as_mapping() else {
         return refs;
@@ -1584,7 +1571,7 @@ paths:
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     fn schema_examples_enriched() {
         let yaml = r"
 components:

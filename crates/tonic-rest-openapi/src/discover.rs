@@ -112,7 +112,7 @@ impl ProtoMetadata {
 
     /// Raw → stripped enum value mapping for all prefix-stripped enums.
     #[must_use]
-    pub fn enum_value_map(&self) -> &HashMap<String, String> {
+    pub const fn enum_value_map(&self) -> &HashMap<String, String> {
         &self.enum_value_map
     }
 }
@@ -386,7 +386,7 @@ fn collect_message_constraints(
 }
 
 /// Convert a single proto field's `validate.rules` to a `FieldConstraint`.
-#[allow(
+#[expect(
     clippy::too_many_lines,
     clippy::case_sensitive_file_extension_comparisons
 )]
@@ -434,11 +434,11 @@ fn field_to_constraint(field: &FieldDescriptorProto) -> Option<FieldConstraint> 
         let min = ir
             .gte
             .map(i64::from)
-            .or(ir.gt.map(|v| i64::from(v).saturating_add(1)));
+            .or_else(|| ir.gt.map(|v| i64::from(v).saturating_add(1)));
         let max = ir
             .lte
             .map(i64::from)
-            .or(ir.lt.map(|v| i64::from(v).saturating_sub(1)));
+            .or_else(|| ir.lt.map(|v| i64::from(v).saturating_sub(1)));
         if min.is_some() || max.is_some() {
             return Some(FieldConstraint {
                 field: camel_name,
@@ -460,11 +460,11 @@ fn field_to_constraint(field: &FieldDescriptorProto) -> Option<FieldConstraint> 
         let min = ur
             .gte
             .map(u64::from)
-            .or(ur.gt.map(|v| u64::from(v).saturating_add(1)));
+            .or_else(|| ur.gt.map(|v| u64::from(v).saturating_add(1)));
         let max = ur
             .lte
             .map(u64::from)
-            .or(ur.lt.map(|v| u64::from(v).saturating_sub(1)));
+            .or_else(|| ur.lt.map(|v| u64::from(v).saturating_sub(1)));
         if min.is_some() || max.is_some() {
             return Some(FieldConstraint {
                 field: camel_name,
@@ -484,8 +484,8 @@ fn field_to_constraint(field: &FieldDescriptorProto) -> Option<FieldConstraint> 
     // UInt64 rules — propagate when within JSON safe integer range
     // Convert exclusive bounds to inclusive (gt → +1, lt → −1) like int32/uint32.
     if let Some(u64r) = &rules.uint64 {
-        let min = u64r.gte.or(u64r.gt.map(|v| v.saturating_add(1)));
-        let max = u64r.lte.or(u64r.lt.map(|v| v.saturating_sub(1)));
+        let min = u64r.gte.or_else(|| u64r.gt.map(|v| v.saturating_add(1)));
+        let max = u64r.lte.or_else(|| u64r.lt.map(|v| v.saturating_sub(1)));
         let min_val = min.unwrap_or(0);
         let max_val = max;
 
@@ -558,13 +558,11 @@ fn field_to_constraint(field: &FieldDescriptorProto) -> Option<FieldConstraint> 
 /// Extract enum rewrites for schemas containing prefix-stripped enums.
 fn extract_enum_rewrites(fdset: &FileDescriptorSet) -> (Vec<EnumRewrite>, HashMap<String, String>) {
     let mut prefix_enums: Vec<(String, String, Vec<String>)> = Vec::new();
+    let mut enum_value_map = HashMap::new();
 
     for file in &fdset.file {
         let package = file.package.as_deref().unwrap_or("");
         for enum_desc in &file.enum_type {
-            let enum_name = enum_desc.name.as_deref().unwrap_or("");
-            let fqn = format!(".{package}.{enum_name}");
-
             let values: Vec<&str> = enum_desc
                 .value
                 .iter()
@@ -575,40 +573,26 @@ fn extract_enum_rewrites(fdset: &FileDescriptorSet) -> (Vec<EnumRewrite>, HashMa
                 continue;
             };
 
-            if values.iter().all(|v| v.starts_with(&detected_prefix)) {
-                let stripped: Vec<String> = values
-                    .iter()
-                    .map(|v| v[detected_prefix.len()..].to_lowercase())
-                    .collect();
-                prefix_enums.push((fqn, detected_prefix, stripped));
+            if !values.iter().all(|v| v.starts_with(&detected_prefix)) {
+                continue;
             }
+
+            // Build stripped values for rewrite detection and the global value map
+            let mut stripped = Vec::with_capacity(values.len());
+            for raw in &values {
+                let suffix = raw[detected_prefix.len()..].to_lowercase();
+                enum_value_map.insert(raw.to_string(), suffix.clone());
+                stripped.push(suffix);
+            }
+
+            let enum_name = enum_desc.name.as_deref().unwrap_or("");
+            let fqn = format!(".{package}.{enum_name}");
+            prefix_enums.push((fqn, detected_prefix, stripped));
         }
     }
 
     if prefix_enums.is_empty() {
         return (Vec::new(), HashMap::new());
-    }
-
-    // Build global raw → stripped value map
-    let mut enum_value_map = HashMap::new();
-    for file in &fdset.file {
-        for enum_desc in &file.enum_type {
-            let values: Vec<&str> = enum_desc
-                .value
-                .iter()
-                .filter_map(|v| v.name.as_deref())
-                .collect();
-
-            let Some(detected_prefix) = detect_enum_prefix(&values) else {
-                continue;
-            };
-
-            for raw in &values {
-                if let Some(suffix) = raw.strip_prefix(detected_prefix.as_str()) {
-                    enum_value_map.insert(raw.to_string(), suffix.to_lowercase());
-                }
-            }
-        }
     }
 
     // Find all message fields referencing these enums (type 14 = TYPE_ENUM)
@@ -768,7 +752,7 @@ fn detect_uuid_schema(fdset: &FileDescriptorSet) -> Option<String> {
 }
 
 /// Extract path parameter constraints from proto HTTP path templates.
-#[allow(clippy::case_sensitive_file_extension_comparisons)] // proto type names, not file paths
+#[expect(clippy::case_sensitive_file_extension_comparisons)] // proto type names, not file paths
 fn extract_path_param_constraints(fdset: &FileDescriptorSet) -> Vec<PathParamInfo> {
     let mut messages: HashMap<String, &[FieldDescriptorProto]> = HashMap::new();
     for file in &fdset.file {
@@ -900,7 +884,8 @@ fn collect_message_fields<'a>(
 }
 
 /// Convert `snake_case` to `lowerCamelCase` (matches gnostic JSON field names).
-pub(crate) fn snake_to_lower_camel(s: &str) -> String {
+#[must_use]
+pub fn snake_to_lower_camel(s: &str) -> String {
     let mut result = String::new();
     let mut capitalize_next = false;
     for c in s.chars() {

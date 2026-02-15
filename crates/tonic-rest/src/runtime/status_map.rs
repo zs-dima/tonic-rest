@@ -16,7 +16,7 @@ use axum::http::StatusCode;
 /// assert_eq!(grpc_code_name(tonic::Code::InvalidArgument), "INVALID_ARGUMENT");
 /// ```
 #[must_use]
-pub fn grpc_code_name(code: tonic::Code) -> &'static str {
+pub const fn grpc_code_name(code: tonic::Code) -> &'static str {
     match code {
         tonic::Code::Ok => "OK",
         tonic::Code::Cancelled => "CANCELLED",
@@ -51,7 +51,7 @@ pub fn grpc_code_name(code: tonic::Code) -> &'static str {
 /// assert_eq!(grpc_to_http_status(tonic::Code::InvalidArgument), axum::http::StatusCode::BAD_REQUEST);
 /// ```
 #[must_use]
-pub fn grpc_to_http_status(code: tonic::Code) -> StatusCode {
+pub const fn grpc_to_http_status(code: tonic::Code) -> StatusCode {
     match code {
         tonic::Code::Ok => StatusCode::OK,
         tonic::Code::Cancelled => StatusCode::REQUEST_TIMEOUT,

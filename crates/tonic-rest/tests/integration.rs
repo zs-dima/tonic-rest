@@ -147,7 +147,7 @@ async fn sse_reject_handler(
         "not logged in",
     )));
 
-    #[allow(unreachable_code)]
+    #[expect(unreachable_code)]
     Ok(Sse::new(stream::empty()))
 }
 
